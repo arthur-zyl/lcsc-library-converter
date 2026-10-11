@@ -3,7 +3,7 @@ const {checkTools,checkTarget}=require('./setup.cjs'),{existingLibrary}=require(
 async function preflight(target,ids,settings,connection={},deps={}){
   const checks=[];const add=async(key,label,group,work)=>{try{const detail=await work();checks.push({key,label,group,ok:true,message:typeof detail==='string'?detail:'可用'});}catch(e){checks.push({key,label,group,ok:false,message:e.message});}};
   if(!['kicad','cadence','altium'].includes(target))return {ok:false,checks:[{label:'目标 EDA',ok:false,message:'请选择有效的目标 EDA。'}]};
-  await add('queue','导出清单','queue',()=>{if(!ids?.length || ids.length>50 || new Set(ids).size!==ids.length || ids.some(id=>!/^C[1-9]\d*$/.test(id)))throw new Error('清单无效，每批最多 50 个。');return ids.length+' 个元件';});
+  await add('queue','导出清单','queue',()=>{if(!ids?.length || new Set(ids).size!==ids.length || ids.some(id=>!/^C[1-9]\d*$/.test(id)))throw new Error('清单无效。');return ids.length+' 个元件';});
   await add('output','库导出目录',target,async()=>{const dir=settings[target+'Dir'];if(!dir || !path.isAbsolute(dir))throw new Error('请填写完整的库导出目录。');const file=path.join(dir,'.hub-check-'+randomUUID());try{await fs.mkdir(dir,{recursive:true});await fs.writeFile(file,'',{flag:'wx'});}finally{await fs.unlink(file).catch(()=>{});}return dir;});
   let prior;await add('library','已有库检查',target,async()=>{prior=await (deps.existingLibrary || existingLibrary)(target,ids,settings);return '已有库索引可读取';});
   const allReused=!!ids?.length && ids.every(id=>prior?.get(id)?.complete);

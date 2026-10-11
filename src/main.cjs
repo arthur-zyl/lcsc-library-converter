@@ -5,6 +5,7 @@ const { attachDiscovery } = require('./discovery-session.cjs');
 const {createJob,cleanupJob,runJob}=require('./export-pipeline.cjs');
 const {ExportLog}=require('./export-log.cjs');
 const {preflight}=require('./preflight.cjs');
+const {initialize,nextBatch,acceptBatch,summary,batchProgress}=require('./export-batches.cjs');
 const {recover,checkpoint}=require('./recovery.cjs');
 const {itemResults,exportSelection}=require('./export-results.cjs');
 let exportJournal;
@@ -98,7 +99,8 @@ function browser(preload, provider) {
 async function finishJob(job, error, result) {
   if(exportJob!==job || job.finishing)return;
   job.finishing=true;clearTimeout(job.timer);
-  if(!result && job.reused?.length)result={results:job.reused,successIds:job.reused.map(r=>r.id),converted:job.reused.length};
+  if(!result)result=summary(job);
+  if(job.runtimeResults?.length)job.message={...job.message,results:[...job.runtimeResults,...(job.message?.results || [])]};
   if(error)log(error.message);
   store.state.exportItemResults={...store.state.exportItemResults,[job.target]:{...store.state.exportItemResults?.[job.target],...itemResults(job,result,error)}};await store.persist();
   await fs.writeFile(path.join(job.output,'last_export_report.json'),JSON.stringify({target:job.target,requestedIds:job.ids,successIds:result?.successIds || [],error:error?.message,stoppedReason:job.stopRequested?'用户中止':job.message?.stoppedReason,logs:logs.slice(-30)},null,2)).catch(e=>log('诊断报告保存失败：'+e.message));
@@ -116,13 +118,18 @@ async function processJobIfReady(job) {
   job.running=true;clearTimeout(job.timer);
   if(job.message.fileName!==job.fileName)return finishJob(job,new Error('下载文件与本次任务不一致。'));
   try {
-    const result=await runJob(job,job.file,(stage,message,p)=>{
+    const batchJob=Object.assign(Object.create(job),{ids:job.batchIds || job.ids,downloadIds:job.batchIds || job.downloadIds,reused:[]});
+    const result=await runJob(batchJob,job.file,(stage,message,p)=>{
       converting=stage.startsWith('转换');conversionProgress=message || stage;
-      const base=converting?60:35,span=converting?35:25;const percent=base+span*(p?.total?p.completed/p.total:0);job.percent=Math.max(job.percent || 0,percent);
-      exportProgress={total:job.ids.length,completed:p?.completed ?? exportProgress?.completed ?? 0,currentId:p?.currentId || exportProgress?.currentId || '',percent:job.percent,stage:message?stage+'：'+String(message).slice(0,180):stage};
+      const percent=batchProgress(job,converting?'convert':'extract',p?.completed || 0,p?.total || job.batchIds?.length);job.percent=Math.max(job.percent || 0,percent);
+      exportProgress={total:job.ids.length,completed:p?.completed ?? exportProgress?.completed ?? 0,currentId:p?.currentId || exportProgress?.currentId || '',percent:job.percent,stage:`第 ${job.batchIndex+1}/${job.batches.length} 批 · `+(message?stage+'：'+String(message).slice(0,180):stage)};
       if(message || !p)log(message || stage);else publish();
     });
-    await finishJob(job,null,result);
+    acceptBatch(job,result);
+    store.state.exportItemResults={...store.state.exportItemResults,[job.target]:{...store.state.exportItemResults?.[job.target],...itemResults(batchJob,result)}};await store.persist();
+    if(job.message?.stoppedReason)job.stopRequested=true;
+    if(nextBatch(job)){job.requestId=bridge.send(job.batchIds).requestId;converting=false;exportProgress={total:job.ids.length,completed:job.processedCount,currentId:'',percent:batchProgress(job,'download'),stage:`第 ${job.batchIndex+1}/${job.batches.length} 批 · 准备导出`};publish();return;}
+    await finishJob(job,null,summary(job));
   }catch(e){await finishJob(job,e);}
 }
 const enrichment = new Map();
@@ -159,7 +166,7 @@ app.whenReady().then(async () => {
     if (m.type === 'progress' && m.progress && bridge.active) {
       const total = bridge.active.ids.length, p = m.progress;
       exportJournal?.add(`立创 EDA 阶段：${p.stage || ''}；器件 ${p.currentId || ''}；${p.completed}/${total}`);
-      if (Number.isInteger(p.completed) && p.completed >= 0 && p.completed <= total && typeof p.stage === 'string') exportProgress = {total:exportJob?.ids.length || total, completed:p.completed+(exportJob?.reused.length || 0),currentId:bridge.active.ids.includes(p.currentId) ? p.currentId : '',stage:p.stage.slice(0,120),percent:35*p.completed/Math.max(total,1)};
+      if (Number.isInteger(p.completed) && p.completed >= 0 && p.completed <= total && typeof p.stage === 'string') exportProgress = {total:exportJob?.ids.length || total, completed:p.completed+(exportJob?.reused.length || 0)+(exportJob?.processedCount || 0),currentId:bridge.active.ids.includes(p.currentId) ? p.currentId : '',stage:p.stage.slice(0,120),percent:exportJob?batchProgress(exportJob,'download',p.completed,total):35*p.completed/Math.max(total,1)};
     }
     if (['hello','auth'].includes(m.type) && typeof m.loggedIn === 'boolean') setLogin(m.loggedIn ? 'signed-in' : 'signed-out');
     if (['exported','failed'].includes(m.type) && exportJob?.requestId===m.requestId) {
@@ -205,7 +212,7 @@ app.whenReady().then(async () => {
     const job=exportJob;
     if(!job || job.download || job.finishing){item.cancel();return;}
     job.download=item;job.fileName=item.getFilename();
-    const file=path.join(job.root,job.fileName);item.setSavePath(file);
+    const file=path.join(job.root,`${job.batchIndex || 0}-${job.fileName}`);item.setSavePath(file);
     item.on('done',(_ev,state)=>{
       if(exportJob!==job || job.finishing)return;
       if(state==='completed'){job.file=file;log('下载已接收，开始处理目标库');void processJobIfReady(job);}
@@ -252,7 +259,7 @@ app.whenReady().then(async () => {
           exportJournal=new ExportLog(target,ids,paths(store));
           startingExport=true;processing=true;publish();
           try {
-            const job=await createJob(target,ids,paths(store));exportJob=job;await checkpoint(store,job);delete store.state.recovery;await store.persist();
+            const job=initialize(await createJob(target,ids,paths(store)));exportJob=job;await checkpoint(store,job);delete store.state.recovery;await store.persist();
             for(const item of job.reused)log(`${item.id}：目标库已存在，跳过下载及转换`);
             if(!job.downloadIds.length){await finishJob(job,null,{converted:job.reused.length,results:job.reused,successIds:job.ids});break;}
             if(edaLogin==='signed-out')throw new Error('请先登录立创 EDA，再开始导出。');
@@ -261,7 +268,7 @@ app.whenReady().then(async () => {
             const checked=await preflight(target,ids,job.settings,{connected:bridge.status().connected,loggedIn:authenticated});if(!checked.ok)throw new Error(checked.checks.filter(x=>!x.ok).map(x=>x.label+'：'+x.message).join('\n'));
             exportProgress={total:ids.length,completed:0,currentId:'',stage:'准备导出工程'};
             setLogin('signed-in');current='eda';setEdaLocked(true);
-            job.requestId=bridge.send(job.downloadIds).requestId;layout();log('开始一键导出 '+(({kicad:'KiCad',cadence:'Cadence',altium:'Altium Designer'}[target]))+' 库');
+            nextBatch(job);job.requestId=bridge.send(job.batchIds).requestId;layout();log('开始一键导出 '+(({kicad:'KiCad',cadence:'Cadence',altium:'Altium Designer'}[target]))+' 库');
           }catch(e){if(exportJob)await finishJob(exportJob,e);else {log(e.message);await saveExportLog(e);processing=false;publish();}throw e;}
           finally {startingExport=false;}
           break;

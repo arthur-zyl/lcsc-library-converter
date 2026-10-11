@@ -10,7 +10,7 @@ const {existingLibrary}=require('./existing-library.cjs');
 const PREFIX = 'eda-hub-export-';
 async function createJob(target, ids, settings) {
   if (!['kicad','cadence','altium'].includes(target)) throw new Error('请选择 KiCad、Cadence 或 Altium Designer。');
-  if (!ids.length || ids.length > 50 || new Set(ids).size !== ids.length || ids.some(id=>!/^C[1-9]\d*$/.test(id))) throw new Error('导出清单无效（每批最多 50 个）。');
+  if (!ids.length || new Set(ids).size !== ids.length || ids.some(id=>!/^C[1-9]\d*$/.test(id))) throw new Error('导出清单无效。');
   const output = settings[target+'Dir'];
   if (!output || !path.isAbsolute(output)) throw new Error('请设置目标库的导出目录。');
   await fs.mkdir(output,{recursive:true});
