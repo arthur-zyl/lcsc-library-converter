@@ -54,7 +54,7 @@ test('settings keep compatible defaults, persist custom paths and reject invalid
   assert.equal(paths(store).resourceDir,path.join(root,'resources')); assert.equal(paths(store).downloadDir,path.join(root,'downloads'));
   const python=path.join(root,'python.exe'); await fs.writeFile(python,'test fixture');
   const settings={freecadPython:python,resourceDir:path.join(root,'custom library'),downloadDir:path.join(root,'custom downloads')};
-  const expected={...settings,altiumDir:path.join(root,'altium'),altiumLibraryName:'LCSC',altiumFootprintSource:'easyeda',altiumFootprintDir:'',kicadFootprintSource:'easyeda',cadenceFootprintSource:'easyeda',kicadFootprintDir:'',cadenceFootprintDir:'',kicadCli:'',kicadDir:path.join(root,'kicad'),kicadFootprintLibraryName:'LCSC',cadenceRoot:'',cadenceDir:path.join(root,'cadence'),cadenceLibraryName:'LCSC'};
+  const expected={retainExportPcb:false,...settings,altiumDir:path.join(root,'altium'),altiumLibraryName:'LCSC',altiumFootprintSource:'easyeda',altiumFootprintDir:'',kicadFootprintSource:'easyeda',cadenceFootprintSource:'easyeda',kicadFootprintDir:'',cadenceFootprintDir:'',kicadCli:'',kicadDir:path.join(root,'kicad'),kicadFootprintLibraryName:'LCSC',cadenceRoot:'',cadenceDir:path.join(root,'cadence'),cadenceLibraryName:'LCSC'};
   await saveSettings(store,settings);
   assert.deepEqual(paths(await new Store(root).init({freshQueue:true})),expected);
   assert.deepEqual(await fs.readdir(settings.resourceDir),[]);
@@ -118,6 +118,15 @@ test('bridge sends validated tasks, rejects concurrent exports and correlates re
   const complete = once(bridge, 'message'); client.send(JSON.stringify({ type: 'exported', requestId: task.requestId, message: 'done' })); await complete;
   assert.equal(bridge.active, null);
   assert.throws(() => bridge.send(['../C123']), /有效/);
+});
+
+test('debug retention is sent only to a plugin version that supports it',async t=>{
+  const bridge=await new Bridge().start();t.after(()=>bridge.close());const client=new WebSocket(bridge.uri);await once(client,'open');
+  assert.throws(()=>bridge.send(['C2915308'],{retainExportPcb:true}),/0\.5\.7/);assert.equal(bridge.active,null);
+  let hello=once(bridge,'message');client.send(JSON.stringify({type:'hello',version:'0.5.6',loggedIn:true}));await hello;
+  assert.throws(()=>bridge.send(['C2915308'],{retainExportPcb:true}),/0\.5\.7/);
+  hello=once(bridge,'message');client.send(JSON.stringify({type:'hello',version:'0.5.7',loggedIn:true}));await hello;
+  const incoming=once(client,'message');bridge.send(['C2915308'],{retainExportPcb:true});assert.equal(JSON.parse((await incoming)[0]).retainExportPcb,true);
 });
 test('real FreeCAD pipeline writes source-only resources and validated independent STEP', { skip: !process.env.HUB_TEST_ZIP }, async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'component-hub-real-')); const s = await new Store(root).init();

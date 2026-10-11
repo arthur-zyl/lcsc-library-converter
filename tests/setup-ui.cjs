@@ -5,7 +5,7 @@ app.whenReady().then(async()=>{
 
   const state={queue:[],logs:[],page:'setup',edaLogin:'signed-out',bridge:{connected:false},navigation:{},settings:{freecadPython:'',kicadCli:'',cadenceRoot:'',kicadDir:'E:/Libraries/KiCad',cadenceDir:'E:/Libraries/Cadence',altiumDir:'E:/Libraries/AD',kicadFootprintLibraryName:'LCSC',cadenceLibraryName:'LCSC',altiumLibraryName:'LCSC',}};
   const win=new BrowserWindow({show:false,width:1060,height:720,webPreferences:{offscreen:true,preload:path.join(root,'src/preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
-  let saved,download;let failSave=true;
+  let saved,download,settingsSaved;let failSave=true;
   const send=()=>win.webContents.send('hub:state',state);
   ipcMain.handle('hub:action',async(_event,action,value)=>{
     if(action==='state')return state;
@@ -13,6 +13,7 @@ app.whenReady().then(async()=>{
     if(action==='setup-download')download=value;
     if(action==='setup-detect')return {ok:true,freecadPython:'D:/FreeCAD 1.1/bin/python.exe',kicadCli:'D:/KiCad/9/bin/kicad-cli.exe',cadenceRoot:'D:/Cadence/SPB_25.1'};
     if(action==='settings-detect')return {ok:true,path:value==='cadenceRoot'?'D:/Cadence/SPB_25.1':'D:/KiCad/9/bin/kicad-cli.exe'};
+    if(action==='settings-save'){settingsSaved=value;Object.assign(state.settings,value.values);send();}
     if(action==='settings-pick')return {ok:true,path:null};
     if(action==='setup-check')return value.freecadPython?{ok:true,message:'可用'}:{ok:false,message:'请安装 FreeCAD'};
     if(action==='setup-save'){if(failSave)return {ok:false,message:'目录无法写入'};saved=value;Object.assign(state.settings,value);state.exportTarget=value.target;send();}
@@ -39,7 +40,13 @@ app.whenReady().then(async()=>{
   assert.ok(await js("document.getElementById('setup').scrollWidth<=document.getElementById('setup').clientWidth && document.querySelector('.connection-status').getBoundingClientRect().right<=innerWidth"));
   await click('setup-next');await pause();assert.equal(state.setupCompleted,true);assert.equal(state.page,'shop');
   await win.reload();await pause();assert.ok(await js("document.getElementById('setup').hidden"));
-  state.page='settings';send();await pause();await click('setup-open');await pause();assert.equal(state.page,'setup');assert.ok(await js("!document.querySelector('[data-setup-panel="+'"0"'+"]').hidden"));
+  state.page='settings';send();await pause();
+  assert.equal(await js("document.getElementById('setting-retainExportPcb').checked"),false);
+  assert.equal(await js("document.getElementById('setting-retainExportPcb').getBoundingClientRect().width"),18);
+  await js("document.getElementById('setting-retainExportPcb').checked=true;document.getElementById('setting-retainExportPcb').dispatchEvent(new Event('input'));document.getElementById('settings-form').requestSubmit()");await pause();
+  assert.equal(settingsSaved.group,'general');assert.equal(settingsSaved.values.retainExportPcb,true);
+  await win.reload();await pause();assert.equal(await js("document.getElementById('setting-retainExportPcb').checked"),true);
+  await click('setup-open');await pause();assert.equal(state.page,'setup');assert.ok(await js("!document.querySelector('[data-setup-panel="+'"0"'+"]').hidden"));
   await click('setup-later');await pause();assert.equal(state.page,'shop');
   console.log('SETUP_UI_OK missing tool, detection, per-EDA drafts, failed save, connection return, restart, reopen, postpone');app.quit();
 }).catch(error=>{console.error(error);app.exit(1);});

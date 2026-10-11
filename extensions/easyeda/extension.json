@@ -3,7 +3,7 @@
   "uuid": "675fb692f8a249f7b5e20c5d8d347b8d",
   "displayName": "EDA Component Hub · 立创 EDA 连接插件",
   "description": "连接 Electron 元件资源库，接受软件导出任务。",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "publisher": "Local Development",
   "engines": {
     "eda": ">=3.2.0 <5.0.0"

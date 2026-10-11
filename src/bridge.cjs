@@ -5,7 +5,7 @@ const http = require('node:http');
 const DISCOVERY_PORT = 27361;
 const DISCOVERY_PATH = '/component-hub/connection';
 class Bridge extends EventEmitter {
-  constructor() { super(); this.token = randomBytes(24).toString('hex'); this.discoveryKey = randomBytes(24).toString('hex'); this.client = null; this.active = null; this.authProbes = new Map(); this.loggedIn = null; this.completion = null; }
+  constructor() { super(); this.token = randomBytes(24).toString('hex'); this.discoveryKey = randomBytes(24).toString('hex'); this.client = null; this.active = null; this.authProbes = new Map(); this.loggedIn = null; this.pluginVersion = null; this.completion = null; }
   async start() {
     this.server = new WebSocketServer({ host: '127.0.0.1', port: 0, maxPayload: 256 * 1024,
       verifyClient: ({ req }) => { try { const token = new URL(req.url, 'http://localhost').searchParams.get('token') || ''; const a = Buffer.from(token), b = Buffer.from(this.token); return a.length === b.length && timingSafeEqual(a, b); } catch { return false; } } });
@@ -17,6 +17,7 @@ class Bridge extends EventEmitter {
       client.on('message', bytes => { try { const m = JSON.parse(bytes.toString());
         if (!m || typeof m.type !== 'string') return;
         if (m.type === 'hello' || m.type === 'auth') {
+          if(m.type==='hello')this.pluginVersion=typeof m.version==='string'?m.version:null;
           if (typeof m.loggedIn === 'boolean') this.loggedIn = m.loggedIn;
           if (m.type === 'auth' && this.authProbes.has(m.probeId)) { this.authProbes.get(m.probeId)(this.loggedIn); this.authProbes.delete(m.probeId); }
           this.emit('message', { ...m, message: m.type === 'hello' ? '立创 EDA 插件已连接' : '立创 EDA 登录状态已核对' }); this.emit('state'); return;
@@ -28,7 +29,7 @@ class Bridge extends EventEmitter {
           this.emit('message', m); if (['exported', 'failed'].includes(m.type)) { this.active = null; this.emit('state'); }
         }
       } catch { this.emit('message', { type: 'invalid', message: '忽略无效通信消息' }); } });
-      client.on('close', () => { this.client = null; this.loggedIn = null; for (const resolve of this.authProbes.values()) resolve(null); this.authProbes.clear(); if (this.active) this.emit('message', { type: 'failed', requestId: this.active.requestId, message: '立创 EDA 连接中断；任务可能仍在立创 EDA 运行，请核对后再发送' }); this.active = null; this.emit('state'); });
+      client.on('close', () => { this.client = null; this.loggedIn = null; this.pluginVersion=null; for (const resolve of this.authProbes.values()) resolve(null); this.authProbes.clear(); if (this.active) this.emit('message', { type: 'failed', requestId: this.active.requestId, message: '立创 EDA 连接中断；任务可能仍在立创 EDA 运行，请核对后再发送' }); this.active = null; this.emit('state'); });
     }); return this;
   }
   async startDiscovery(port = DISCOVERY_PORT) {
@@ -50,11 +51,12 @@ class Bridge extends EventEmitter {
     await new Promise((resolve, reject) => { this.discovery.once('listening', resolve); this.discovery.once('error', reject); this.discovery.listen(port, '127.0.0.1'); });
     return this.discovery.address().port;
   }
-  send(ids) {
+  send(ids,options={}) {
     if (this.active) throw new Error('已有导出任务运行中');
     if (!this.client || this.client.readyState !== WebSocket.OPEN) throw new Error('请先在立创 EDA 插件菜单中连接本应用');
+    if(options.retainExportPcb===true){const version=/^(\d+)\.(\d+)\.(\d+)/.exec(this.pluginVersion||'');if(!version || Number(version[1])*1000000+Number(version[2])*1000+Number(version[3])<5007)throw new Error('保留调试 PCB 需要重新导入立创 EDA 连接插件 0.5.7 或更新版本。');}
     const unique = [...new Set(ids)]; if (!unique.length || unique.length > 50 || unique.some(x => !/^C[1-9]\d*$/.test(x))) throw new Error('每批需要 1–50 个有效 C 编号');
-    this.completion = null; this.active = { requestId: randomUUID(), ids: unique };
+    this.completion = null; this.active = { requestId: randomUUID(), ids: unique, retainExportPcb:options.retainExportPcb===true };
     this.client.send(JSON.stringify({ type: 'export', ...this.active })); this.emit('state'); return this.active;
   }
   stop() {
@@ -63,7 +65,7 @@ class Bridge extends EventEmitter {
     this.active.stopRequested = true; this.emit('state'); return true;
   }
   checkLogin() { if (!this.client || this.client.readyState !== WebSocket.OPEN) return Promise.resolve(null); return new Promise(resolve => { const probeId = randomUUID(); const timer = setTimeout(() => { this.authProbes.delete(probeId); resolve(null); }, 4000); this.authProbes.set(probeId, value => { clearTimeout(timer); resolve(value); }); this.client.send(JSON.stringify({ type: 'check-auth', probeId })); }); }
-  status() { return { connected: !!this.client, active: this.active, uri: this.uri, loggedIn: this.loggedIn }; }
+  status() { return { connected: !!this.client, active: this.active, uri: this.uri, loggedIn: this.loggedIn,version:this.pluginVersion }; }
   close() { this.client?.terminate(); this.server?.close(); this.discovery?.close(); }
 }
 module.exports = { Bridge, DISCOVERY_PORT, DISCOVERY_PATH };

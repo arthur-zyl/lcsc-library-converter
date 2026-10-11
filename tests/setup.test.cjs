@@ -65,3 +65,17 @@ test('group save ignores unavailable other EDA tools and retains unrelated setti
   assert.equal(store.state.freecadPython,'missing-python');assert.equal(store.state.cadenceRoot,path.join(root,'missing-cadence'));assert.equal(store.state.kicadFootprintLibraryName,'Parts');
   const before={...store.state};await assert.rejects(saveSettings(store,{cadenceRoot:path.join(root,'missing'),cadenceDir:path.join(root,'Cadence')},{group:'cadence'}),/缺少/);assert.deepEqual(store.state,before);
 });
+
+test('debug PCB retention defaults off, persists as a boolean, and survives other settings groups',async t=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'hub-debug-setting-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const store=await new Store(root).init(),python=path.join(root,'python.exe');await fs.writeFile(python,'fixture');
+  assert.equal(paths(store).retainExportPcb,false);
+  await saveSettings(store,{freecadPython:python,retainExportPcb:true},{group:'general'});
+  assert.equal(paths(await new Store(root).init()).retainExportPcb,true);
+  await saveSettings(store,{kicadDir:path.join(root,'out'),kicadFootprintLibraryName:'LCSC'},{group:'kicad'});
+  assert.equal(paths(store).retainExportPcb,true);
+  await assert.rejects(saveSettings(store,{retainExportPcb:'false'},{group:'general'}),/布尔值/);
+  assert.equal(paths(store).retainExportPcb,true);
+  await saveSettings(store,{retainExportPcb:false},{group:'general'});
+  assert.equal(paths(await new Store(root).init()).retainExportPcb,false);
+});

@@ -288,13 +288,13 @@ async function projectApi<T>(name: string, action: () => Promise<T>): Promise<T>
     throw new Error(`工程准备失败 [${name}]：${errorText(error)}`);
   }
 }
-async function createScratch(): Promise<void> {
+async function createScratch(debugPartId?: string): Promise<void> {
   if (scratch?.owned) throw new Error('已有临时 PCB，请先完成该 PCB 的批量任务，避免重复创建。');
   await ensureExportProject();
   const uuid = await eda.dmt_Pcb.createPcb();
   if (!uuid) throw new Error('无法在专用工程中创建导出 PCB。');
   record('scratch-create-result', uuid);
-  const name = `temp_lcsc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const name = `${debugPartId ? 'debug_'+debugPartId : 'temp_lcsc'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   try {
     const tabId = await eda.dmt_EditorControl.openDocument(uuid);
     if (!tabId) throw new Error('临时 PCB 无法打开。');
@@ -350,6 +350,21 @@ async function finishScratch(): Promise<{ status: string; message?: string }> {
     record('scratch-delete-failed', errorText(error));
     return { status: 'delete_failed', message: errorText(error) };
   }
+}
+type RetainedPcb = { uuid: string; name?: string; partId: string; saved: boolean; message?: string };
+async function retainScratch(partId: string): Promise<RetainedPcb> {
+  if (!scratch?.owned) throw new Error('调试模式只能保留本次自动创建的 PCB，请从软件启动导出。');
+  const owned=scratch,result:RetainedPcb={uuid:owned.uuid,name:owned.name,partId,saved:false};
+  try {
+    const info=await pcbInfo(owned.uuid);
+    if (!info || info.uuid!==owned.uuid || info.name!==owned.name) throw new Error('调试 PCB 身份或名称已变化，请手动保存检查。');
+    await ensureDocument(owned.uuid);
+    if (!await eda.pcb_Document.save()) throw new Error('调试 PCB 保存失败，已保留编辑现场，请手动保存。');
+    await ensureDocument(owned.uuid);result.saved=true;
+  } catch(error) {result.message=errorText(error);}
+  // Release ownership so the next task never clears or deletes this snapshot.
+  scratch=undefined;record('debug-pcb-retained',JSON.stringify({...result,projectUuid:exportProjectUuid}));
+  return result;
 }
 async function clearScratch(): Promise<void> {
   if (!scratch) throw new Error('未绑定专用导出 PCB。');
@@ -440,11 +455,12 @@ async function attemptPcb(zip: JSZip, manifest: Manifest, device: Device): Promi
     record('pcb-failed', errorText(error));
   }
 }
-async function runBatch(ids: string[]): Promise<void> {
+async function runBatch(ids: string[], retainExportPcb = false): Promise<void> {
   exportProgress = { total: ids.length, completed: 0, currentId: '', stage: '准备导出工程' };
   progress('准备导出工程');
   stopRequested = false;
-  if (!scratch) await createScratch();
+  if(retainExportPcb && scratch && !scratch.owned)throw new Error('调试模式请使用软件自动创建的导出 PCB，未清空当前绑定的 PCB。');
+  if (!scratch) await createScratch(retainExportPcb ? ids[0] : undefined);
   else {
     await eda.dmt_EditorControl.openDocument(scratch.uuid);
     await ensureDocument(scratch.uuid);
@@ -452,6 +468,7 @@ async function runBatch(ids: string[]): Promise<void> {
   const outer = new JSZip();
   const results: Array<{ partId: string; status: string; message?: string }> = [];
   let stoppedReason = '';
+  const retained: RetainedPcb[] = [];
   for (let index = 0; index < ids.length; index++) {
     if (stopRequested) { stoppedReason = '用户请求停止'; break; }
     const id = ids[index];
@@ -461,6 +478,7 @@ async function runBatch(ids: string[]): Promise<void> {
     const files = outer.folder(id)!;
     const manifest = freshManifest(id);
     try {
+      if (!scratch) await createScratch(retainExportPcb ? id : undefined);
       await clearScratch();
     } catch (error) {
       stoppedReason = errorText(error);
@@ -489,7 +507,13 @@ async function runBatch(ids: string[]): Promise<void> {
     // Always clean up the bound PCB, including a partially failed placement.
     // A document switch or failed cleanup stops the queue before another part.
     progress('清理临时 PCB');
-    try { await clearScratch(); }
+    try {
+      if (retainExportPcb) {
+        progress('保存调试 PCB');
+        const saved=await retainScratch(id);retained.push(saved);
+        if (!saved.saved) throw new Error(saved.message);
+      } else await clearScratch();
+    }
     catch (error) { stoppedReason = errorText(error); manifest.warnings.push(stoppedReason); }
     files.file('manifest.json', JSON.stringify(manifest, null, 2));
     const complete = ['device.elibz', 'footprint.elibz', 'pcb_with_component.step']
@@ -503,12 +527,13 @@ async function runBatch(ids: string[]): Promise<void> {
   }
   const done = new Set(results.map(x => x.partId));
   for (const id of ids) if (!done.has(id)) results.push({ partId: id, status: 'not_started' });
-  const scratchDocumentUuid = scratch?.uuid;
-  progress('删除临时 PCB', results.filter(x => x.status !== 'not_started').length, '');
-  const pcbCleanup = await finishScratch();
+  if (retainExportPcb && scratch?.owned) retained.push(await retainScratch(exportProgress?.currentId || ''));
+  const scratchDocumentUuid = scratch?.uuid || retained.at(-1)?.uuid;
+  progress(retainExportPcb ? '保留调试 PCB' : '删除临时 PCB', results.filter(x => x.status !== 'not_started').length, '');
+  const pcbCleanup = retainExportPcb ? {status:'debug_pcbs_retained',projectUuid:exportProjectUuid,documents:retained} : await finishScratch();
   outer.file('batch_manifest.json', JSON.stringify({ schema: 'lcsc-cadence-batch/v1',
     extensionVersion: VERSION, createdAt: new Date().toISOString(), scratchDocumentUuid, pcbCleanup,
-    exportProjectUuid: scratch?.owned ? exportProjectUuid : (pcbCleanup.status === 'temporary_pcb_deleted' ? exportProjectUuid : undefined),
+    exportProjectUuid: scratch?.owned ? exportProjectUuid : (retainExportPcb || pcbCleanup.status === 'temporary_pcb_deleted' ? exportProjectUuid : undefined),
     requestedIds: ids, stoppedReason: stoppedReason || undefined, results }, null, 2));
   outer.file('README.txt', '每个 C 编号目录内有 manifest.json 及已取得文件。\n'
     + '查看 batch_manifest.json 了解失败和未处理项。\n将整个 ZIP 拖到配套 process_download.cmd 批量提取 STEP。\n');
@@ -539,11 +564,11 @@ function openDesktop(uri: string): void {
     eda.sys_WebSocket.close('component-hub'); bridgeUri = '';
   }
   eda.sys_WebSocket.register('component-hub', uri, event => {
-    let message: { type?: string; requestId?: string; ids?: unknown; probeId?: string };
+    let message: { retainExportPcb?: unknown; type?: string; requestId?: string; ids?: unknown; probeId?: string };
     try { message = JSON.parse(String(event.data)); } catch { return; }
     if (message.type === 'check-auth') { notifyDesktop('auth', '立创 EDA 登录状态', { loggedIn: loggedIn(), probeId: message.probeId }); return; }
     if (message.type === 'stop' && message.requestId === bridgeRequestId) {
-      if (exportProgress && !['删除临时 PCB','打包导出文件','下载导出文件'].includes(exportProgress.stage)) {
+      if (exportProgress && !['删除临时 PCB','保留调试 PCB','打包导出文件','下载导出文件'].includes(exportProgress.stage)) {
         stopRequested = true;
         notifyDesktop('progress', '已收到中止请求，等待当前元件处理和清理完成。');
       }
@@ -556,7 +581,8 @@ function openDesktop(uri: string): void {
       try {
         if (!Array.isArray(message.ids) || message.ids.some(x => typeof x !== 'string')) throw new Error('任务器件清单格式错误');
         if (!loggedIn()) throw new Error('请先登录立创 EDA，再导出元件。');
-        await runBatch(parseIds(message.ids.join(',')));
+        if (message.retainExportPcb!==undefined && typeof message.retainExportPcb!=='boolean') throw new Error('调试开关格式错误');
+        await runBatch(parseIds(message.ids.join(',')), message.retainExportPcb===true);
       } catch (error) { notifyDesktop('failed', errorText(error)); throw error; }
       finally { bridgeRequestId = ''; }
     }, true);

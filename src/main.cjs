@@ -121,7 +121,7 @@ async function finishJob(job, error, result) {
   const logPath=await saveExportLog(error,result,job.message);
   delete store.state.activeExport;await store.persist().catch(e=>log('恢复记录更新失败：'+e.message));
   exportJob=undefined;processing=false;converting=false;conversionProgress='';
-  showExportResult({type:'pipeline-result',logPath,target:job.target,converted:result?.converted || 0,failed:job.ids.length-(result?.converted || 0),folder:job.output,stoppedReason:job.stopRequested?(job.stopReason || '用户中止'):job.message?.stoppedReason,message:[result?.results?.some(r=>r.reused)?`已存在并复用 ${result.results.filter(r=>r.reused).length} 个元件。`:null,job.settings[job.target+'FootprintSource']==='eda' && result?.converted?`封装来源：EDA 本地库 ${result.results.filter(r=>r.status==='converted' && r.footprintSource==='eda').length} 个，立创 ${result.results.filter(r=>r.status==='converted' && r.footprintSource!=='eda').length} 个。`:null,error?.message,cleanupMessage,job.message?.pcbCleanup?.status==='delete_failed'?'临时 PCB 删除失败：'+job.message.pcbCleanup.message:''].filter(Boolean).join('\n')});
+  showExportResult({type:'pipeline-result',logPath,target:job.target,converted:result?.converted || 0,failed:job.ids.length-(result?.converted || 0),folder:job.output,stoppedReason:job.stopRequested?(job.stopReason || '用户中止'):job.message?.stoppedReason,message:[result?.results?.some(r=>r.reused)?`已存在并复用 ${result.results.filter(r=>r.reused).length} 个元件。`:null,job.settings[job.target+'FootprintSource']==='eda' && result?.converted?`封装来源：EDA 本地库 ${result.results.filter(r=>r.status==='converted' && r.footprintSource==='eda').length} 个，立创 ${result.results.filter(r=>r.status==='converted' && r.footprintSource!=='eda').length} 个。`:null,error?.message,cleanupMessage,job.message?.pcbCleanup?.status==='debug_pcbs_retained'?'调试 PCB 已保留在立创 EDA 的 lcsc-cadence-downloader 工程，名称包含 C 编号；具体保存结果见导出日志。':null,job.message?.pcbCleanup?.status==='delete_failed'?'临时 PCB 删除失败：'+job.message.pcbCleanup.message:''].filter(Boolean).join('\n')});
 }
 async function processJobIfReady(job) {
   if(exportJob!==job || job.running || job.finishing || !job.message || !job.file)return;
@@ -138,7 +138,7 @@ async function processJobIfReady(job) {
     acceptBatch(job,result);
     store.state.exportItemResults={...store.state.exportItemResults,[job.target]:{...store.state.exportItemResults?.[job.target],...itemResults(batchJob,result)}};await store.persist();
     if(job.message?.stoppedReason || job.message?.pcbCleanup?.status==='delete_failed'){job.stopRequested=true;job.stopReason=job.message.stoppedReason || '临时 PCB 清理失败，停止后续批次。';}
-    if(nextBatch(job)){job.requestId=bridge.send(job.batchIds).requestId;converting=false;exportProgress={total:job.ids.length,completed:job.processedCount,currentId:'',percent:batchProgress(job,'download'),stage:`第 ${job.batchIndex+1}/${job.batches.length} 批 · 准备导出`};publish();return;}
+    if(nextBatch(job)){job.requestId=bridge.send(job.batchIds,{retainExportPcb:job.settings.retainExportPcb}).requestId;converting=false;exportProgress={total:job.ids.length,completed:job.processedCount,currentId:'',percent:batchProgress(job,'download'),stage:`第 ${job.batchIndex+1}/${job.batches.length} 批 · 准备导出`};publish();return;}
     await finishJob(job,null,summary(job));
   }catch(e){await finishJob(job,e);}
 }
@@ -278,7 +278,7 @@ app.whenReady().then(async () => {
             const checked=await preflight(target,ids,job.settings,{connected:bridge.status().connected,loggedIn:authenticated});if(!checked.ok)throw new Error(checked.checks.filter(x=>!x.ok).map(x=>x.label+'：'+x.message).join('\n'));
             exportProgress={total:ids.length,completed:0,currentId:'',stage:'准备导出工程'};
             setLogin('signed-in');current='eda';setEdaLocked(true);
-            nextBatch(job);job.requestId=bridge.send(job.batchIds).requestId;layout();log('开始一键导出 '+(({kicad:'KiCad',cadence:'Cadence',altium:'Altium Designer'}[target]))+' 库');
+            nextBatch(job);job.requestId=bridge.send(job.batchIds,{retainExportPcb:job.settings.retainExportPcb}).requestId;layout();log('开始一键导出 '+(({kicad:'KiCad',cadence:'Cadence',altium:'Altium Designer'}[target]))+' 库');
           }catch(e){if(exportJob)await finishJob(exportJob,e);else {log(e.message);await saveExportLog(e);processing=false;publish();}throw e;}
           finally {startingExport=false;}
           break;

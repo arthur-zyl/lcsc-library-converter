@@ -1,4 +1,4 @@
-export const VERSION = '0.5.6';
+export const VERSION = '0.5.7';
 export function documentTypeCode(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isInteger(value)) return value;
   if (typeof value !== 'string' || !value.trim()) return undefined;

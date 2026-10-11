@@ -9,7 +9,7 @@ function selectSettingsGroup(group, focus=false) {
   if(focus)button.focus();
   if(state)render(state);
 }
-const settingKeys = ['kicadFootprintSource','cadenceFootprintSource','kicadFootprintDir','cadenceFootprintDir','freecadPython','kicadCli','kicadDir','kicadFootprintLibraryName','cadenceRoot','cadenceDir','cadenceLibraryName','altiumDir','altiumLibraryName','altiumFootprintSource','altiumFootprintDir'];
+const settingKeys = ['retainExportPcb','kicadFootprintSource','cadenceFootprintSource','kicadFootprintDir','cadenceFootprintDir','freecadPython','kicadCli','kicadDir','kicadFootprintLibraryName','cadenceRoot','cadenceDir','cadenceLibraryName','altiumDir','altiumLibraryName','altiumFootprintSource','altiumFootprintDir'];
 const $ = id => document.getElementById(id);
 let noticeTimer;
 function notice(message) { $('notice').textContent = message; $('notice').hidden = false; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { $('notice').hidden = true; }, 5000); }
@@ -75,7 +75,7 @@ function render(s) {
   $('output-folder').disabled=s.edaLocked || s.processing || s.converting;
   $('settings').hidden = s.page !== 'settings';
   renderSetup(s);
-  if (s.settings) for (const key of settingKeys) if(!dirtyGroups.has($('setting-'+key).closest('[data-settings-panel]').dataset.settingsPanel)) $('setting-'+key).value = s.settings[key] ?? (key.endsWith('Source')?'easyeda':'');
+  if (s.settings) for (const key of settingKeys) if(!dirtyGroups.has($('setting-'+key).closest('[data-settings-panel]').dataset.settingsPanel)) {const field=$('setting-'+key);if(field.type==='checkbox')field.checked=s.settings[key]===true;else field.value=s.settings[key] ?? (key.endsWith('Source')?'easyeda':'');}
   const settingsLocked = toolDetectionBusy || !!s.bridge.active || s.processing || s.converting || s.settingsBusy || settingsSaving;
   for (const element of $('settings-form').querySelectorAll('input,select,textarea,button')) element.disabled = settingsLocked;
   $('settings-save').textContent = s.settingsBusy || settingsSaving ? '正在保存…' : '保存当前设置';
@@ -111,7 +111,7 @@ $('settings-form').addEventListener('submit', async event => {
   event.preventDefault(); if (settingsSaving) return;
   const panel=document.querySelector('[data-settings-panel="'+activeSettingsGroup+'"]');
   for(const input of panel.querySelectorAll('input'))if(!input.checkValidity()){selectSettingsGroup(input.closest('[data-settings-panel]').dataset.settingsPanel);input.reportValidity();return;}
-  const value = Object.fromEntries(settingKeys.filter(key=>panel.contains($('setting-'+key))).map(key=>[key,$('setting-'+key).value]));
+  const value = Object.fromEntries(settingKeys.filter(key=>panel.contains($('setting-'+key))).map(key=>[key,$('setting-'+key).type==='checkbox'?$('setting-'+key).checked:$('setting-'+key).value]));
   settingsSaving = true; render(state);
   try {
     const result = await call('settings-save',{group:activeSettingsGroup,values:value});

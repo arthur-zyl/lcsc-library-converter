@@ -11,7 +11,7 @@ function setup(options = {}) {
   const state = { components: options.existing ? ['initial'] : [], outlines: [], creates: 0,
     stepCalls: 0, saved: [], messages: [], currentId: 'C48997937', documentUuid: 'pcb1',
     createdPcbs: 0, deletedInDocuments: [], pcbNames: {}, deletedPcbs: [], renames: 0, infoReads: 0,
-    projectCreates: 0, projectOpens: [], activeTabId: 'tab1', activeType: undefined, documentSaves: [],
+    pcbContents: {}, debugSavedDocs: [], projectCreates: 0, projectOpens: [], activeTabId: 'tab1', activeType: undefined, documentSaves: [],
     projectUuid: options.noCurrentProject ? undefined : 'export-project',
     projects: options.noExportProject ? {} : { 'export-project': 'lcsc-cadence-downloader' } };
   if (options.duplicateProjects) state.projects['duplicate'] = 'lcsc-cadence-downloader';
@@ -86,7 +86,7 @@ function setup(options = {}) {
       uuid: options.switchAfterStep && state.stepCalls ? 'foreign-pcb' : state.documentUuid,
       tabId: options.focusMismatch ? 'wrong-tab' : state.activeTabId }) },
     dmt_Pcb: {
-      createPcb: async () => { state.createdPcbs++; state.pcbNames.scratch1 = 'PCB1'; return 'scratch1'; },
+      createPcb: async () => { state.createdPcbs++; const uuid='scratch'+state.createdPcbs;state.pcbNames[uuid]='PCB'+state.createdPcbs;state.pcbContents[uuid]={components:[],outlines:[]};return uuid; },
       modifyPcbName: async (uuid, name) => {
         assert.equal(state.documentUuid, uuid, 'PCB must be opened before rename');
         state.renames++;
@@ -108,7 +108,7 @@ function setup(options = {}) {
       },
     },
     dmt_EditorControl: {
-      openDocument: async uuid => { state.documentUuid = uuid; state.activeTabId = 'tab1'; state.activeType = 3; return 'tab1'; },
+      openDocument: async uuid => {state.pcbContents[state.documentUuid]={components:[...state.components],outlines:[...state.outlines]};const content=state.pcbContents[uuid]||{components:[],outlines:[]};state.components=[...content.components];state.outlines=[...content.outlines]; state.documentUuid = uuid; state.activeTabId = 'tab1'; state.activeType = 3; return 'tab1'; },
       activateDocument: async tabId => {
         if (options.activateFailure) return false;
         state.activeTabId = tabId; state.activeType = tabId === 'background' ? options.backgroundType ?? 3 : undefined; return true;
@@ -118,7 +118,7 @@ function setup(options = {}) {
         : [{ documentType: Object.hasOwn(options, 'homeType') ? options.homeType : -1,
           tabId: 'home', title: options.homeTitle ?? '首页' }] }] }),
     },
-    pcb_Document: { save: async () => { state.documentSaves.push('pcb'); return !options.saveFailure; } },
+    pcb_Document: { save: async () => { state.documentSaves.push('pcb');state.debugSavedDocs.push({uuid:state.documentUuid,id:state.currentId,components:[...state.components]});return !options.saveFailure; } },
     sch_Document: { save: async () => { state.documentSaves.push('sch'); return !options.saveFailure; } },
     pnl_Document: { save: async () => { state.documentSaves.push('panel'); return !options.saveFailure; } },
     sys_ToastMessage: { showMessage: () => { state.messages.push('toast'); } },
@@ -549,6 +549,41 @@ test('desktop bridge exports a received task and reports correlated results', as
   const finished = s.bridgeMessages.find(x => x.type === 'exported');
   assert.equal(finished.requestId, requestId); assert.equal(finished.results.length, 2);
   assert.ok(s.bridgeMessages.some(x => x.type === 'progress'));
+});
+
+test('debug export saves one placed PCB per part and the next normal task leaves snapshots untouched', async () => {
+  const s=setup();await s.run('connectDesktop');
+  await s.desktop({type:'export',requestId:'11111111-1111-4111-8111-111111111111',ids:['C2915308','C48997937'],retainExportPcb:true});
+  assert.equal(s.state.createdPcbs,2);assert.deepEqual(s.state.deletedPcbs,[],JSON.stringify(s.bridgeMessages));
+  assert.deepEqual(s.state.debugSavedDocs.map(d=>d.id),['C2915308','C48997937']);
+  assert.ok(s.state.debugSavedDocs.every(d=>d.components.length===1));
+  const retained=s.bridgeMessages.find(m=>m.type==='exported').pcbCleanup;
+  assert.equal(retained.status,'debug_pcbs_retained');assert.equal(retained.documents.length,2);
+  assert.ok(retained.documents.every(d=>d.saved&&d.name.includes(d.partId)));
+  const zip=await JSZip.loadAsync(await s.state.saved[0].blob.arrayBuffer());
+  const manifest=JSON.parse(await zip.file('batch_manifest.json').async('string'));
+  assert.equal(manifest.exportProjectUuid,'export-project');assert.equal(manifest.pcbCleanup.documents.length,2);
+  await s.desktop({type:'export',requestId:'22222222-2222-4222-8222-222222222222',ids:['C5205141']});
+  assert.deepEqual(s.state.deletedPcbs,['scratch3']);
+  assert.ok(s.state.pcbNames.scratch1.includes('C2915308'));assert.ok(s.state.pcbNames.scratch2.includes('C48997937'));
+});
+
+test('debug export stops on cloud save failure without deleting or clearing placed component',async()=>{
+  const s=setup({saveFailure:true});await s.run('connectDesktop');
+  await s.desktop({type:'export',requestId:'11111111-1111-4111-8111-111111111111',ids:['C2915308','C48997937'],retainExportPcb:true});
+  const done=s.bridgeMessages.find(m=>m.type==='exported');
+  assert.equal(s.state.createdPcbs,1);assert.deepEqual(s.state.deletedPcbs,[]);
+  assert.equal(s.state.components.length,1);assert.match(done.stoppedReason,/保存失败/);
+  assert.equal(done.pcbCleanup.documents[0].saved,false);assert.equal(done.results[1].status,'not_started');
+});
+
+test('debug stop retains current placed PCB and skips unstarted parts',async()=>{
+  const requestId='11111111-1111-4111-8111-111111111111';
+  const s=setup({stopOnStepRequestId:requestId});await s.run('connectDesktop');
+  await s.desktop({type:'export',requestId,ids:['C2915308','C48997937'],retainExportPcb:true});
+  const done=s.bridgeMessages.find(m=>m.type==='exported');assert.equal(done.pcbCleanup.documents.length,1);
+  assert.equal(done.pcbCleanup.documents[0].saved,true);assert.deepEqual(s.state.deletedPcbs,[]);
+  assert.equal(done.results[1].status,'not_started');assert.equal(s.state.components.length,1);
 });
 test('public extension menus expose only connection and runtime sources belong to the app', async () => {
   for (const menus of Object.values(extensionManifest.headerMenus)) assert.deepEqual(menus[0].menuItems.map(x => x.registerFn), ['connectDesktop']);
