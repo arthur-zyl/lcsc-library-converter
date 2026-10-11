@@ -3,6 +3,7 @@ const path = require('node:path'); const fs = require('node:fs/promises'); const
 const { Store, isShop } = require('./store.cjs'); const { Bridge, DISCOVERY_PORT } = require('./bridge.cjs');
 const { attachDiscovery } = require('./discovery-session.cjs');
 const {createJob,cleanupJob,runJob}=require('./export-pipeline.cjs');
+const {preserveArtifacts,hasFailure}=require('./failed-artifacts.cjs');
 const {ExportLog}=require('./export-log.cjs');
 const {preflight}=require('./preflight.cjs');
 const {initialize,nextBatch,acceptBatch,summary,batchProgress}=require('./export-batches.cjs');
@@ -109,7 +110,14 @@ async function finishJob(job, error, result) {
   if(result?.successIds.length)await store.removeMany(result.successIds).catch(e=>log('清单更新失败：'+e.message));
   exportProgress={...exportProgress,stage:'清理临时文件',percent:100,completed:result?.converted || 0};publish();
   let cleanupMessage='';
-  try {await cleanupJob(job);}catch(e){cleanupMessage='临时文件清理失败：'+e.message;log(cleanupMessage);}
+  try {
+    if(hasFailure(job,result,error)){
+      const diagnosticPath=await preserveArtifacts(job.root,path.join(store.root,'failed-exports'),{target:job.target,requestedIds:job.ids,error:error?.message,results:result?.results,logs:[...logs]});
+      cleanupMessage=diagnosticPath?'失败任务文件已保留：'+diagnosticPath:'';
+      await fs.writeFile(path.join(job.output,'last_failure_files.json'),JSON.stringify({diagnosticPath},null,2));
+      if(cleanupMessage)log(cleanupMessage);
+    }else await cleanupJob(job);
+  }catch(e){cleanupMessage='文件归档或清理失败：'+e.message+'；临时文件保留位置：'+job.root;log(cleanupMessage);}
   const logPath=await saveExportLog(error,result,job.message);
   delete store.state.activeExport;await store.persist().catch(e=>log('恢复记录更新失败：'+e.message));
   exportJob=undefined;processing=false;converting=false;conversionProgress='';
@@ -423,7 +431,7 @@ app.whenReady().then(async () => {
     task=null;await win.webContents.executeJavaScript('window.hub.call("export",'+JSON.stringify(target)+')');await waitFor(()=>!!task);
     const failedTemp=exportJob.root;
     client.send(JSON.stringify({type:'failed',requestId:task.requestId,message:'Simulated export failure'}));await waitFor(()=>resultDialogOpen);
-    if(edaLocked || store.state.queue.length!==1 || await fs.stat(failedTemp).catch(()=>false))throw new Error('Failure cleanup/queue failed');
+    if(edaLocked || store.state.queue.length!==1 || await fs.stat(failedTemp).catch(()=>false) || !(await fs.readdir(path.join(store.root,'failed-exports'))).length)throw new Error('Failure archive/queue failed');
     const failureLog=exportResult.logPath;
     if(failureLog===successLog || !(await fs.readFile(failureLog,'utf8')).includes('Simulated export failure'))throw new Error('Failure export log incomplete');
     await resultCover.webContents.executeJavaScript('document.getElementById("result-confirm").click()');await waitFor(()=>!resultDialogOpen);

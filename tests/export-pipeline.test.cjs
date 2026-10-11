@@ -2,6 +2,20 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const JSZip=require('jszip');
 const {createJob,runJob,cleanupJob}=require('../src/export-pipeline.cjs');
+const {preserveArtifacts,hasFailure}=require('../src/failed-artifacts.cjs');
+test('failed jobs retain ZIPs and processing logs; successful and purely stopped jobs still clean',async t=>{
+ const {job,zip,output}=await fixture(t);
+ await fs.mkdir(path.join(job.root,'resources'));await fs.writeFile(path.join(job.root,'resources','processing.log'),'bounding-box mismatch');
+ assert.equal(hasFailure(job,{failed:1},null),true);assert.equal(hasFailure(job,{failed:0},null),false);
+ assert.equal(hasFailure({...job,stopRequested:true},{failed:1,results:[{status:'not_started'}]},null),false);
+ assert.equal(hasFailure({...job,stopRequested:true},{results:[{status:'failed'}]},null),true);
+ assert.equal(hasFailure(job,{},new Error('failed')),true);
+ await assert.rejects(preserveArtifacts(output,path.join(output,'diagnostics'),{}),/校验失败/);
+ await assert.rejects(preserveArtifacts(job.root,path.join(job.root,'diagnostics'),{}),/不能位于/);
+ const archived=await preserveArtifacts(job.root,path.join(output,'diagnostics'),{error:'bounding-box mismatch'});
+ await fs.access(path.join(archived,path.basename(zip)));assert.equal(await fs.readFile(path.join(archived,'resources','processing.log'),'utf8'),'bounding-box mismatch');
+ assert.equal(JSON.parse(await fs.readFile(path.join(archived,'failure.json'),'utf8')).error,'bounding-box mismatch');await assert.rejects(fs.access(job.root));
+});
 async function fixture(t,ids=['C123','C456']) {
   const output=await fs.mkdtemp(path.join(os.tmpdir(),'hub-library-test-'));
   const settings={freecadPython:process.execPath,kicadCli:process.execPath,kicadDir:output};

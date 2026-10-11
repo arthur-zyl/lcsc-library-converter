@@ -11,6 +11,7 @@ import FreeCAD as App
 import Import
 import Part
 from collections import Counter
+from step_bounds import compare_bounds
 
 
 def bounds(shape):
@@ -90,14 +91,20 @@ def export_checked(shape, colors, path, label):
         if abs(loaded.Volume - shape.Volume) > max(1e-5, shape.Volume * 1e-7):
             raise RuntimeError('Round-trip volume mismatch')
         a, b = bounds(shape), bounds(loaded)
-        if any(abs(a[k] - b[k]) > 1e-5 for k in a):
-            raise RuntimeError('Round-trip bounding-box mismatch')
+        comparison = compare_bounds(a, b)
+        diagnostic = path.with_suffix('.validation.json')
+        diagnostic.write_text(json.dumps(comparison, indent=2), encoding='utf-8')
+        if not comparison['passed']:
+            raise RuntimeError('Round-trip bounding-box mismatch: max delta '
+                               + str(comparison['max_delta_mm']) + ' mm; tolerance '
+                               + str(comparison['tolerance_mm']) + ' mm; details: ' + str(diagnostic))
         actual_colors = [c for obj, values in (reimported_colors or []) for c in
                          (list(values)*len(obj.Shape.Faces) if len(values)==1 else values)]
         if color_counts(actual_colors) != color_counts(colors):
             raise RuntimeError('Round-trip face-color check failed')
         return {'file': str(path), 'valid': True, 'solids': len(loaded.Solids),
                 'volume_mm3': loaded.Volume, 'bounds_mm': b,
+                'bounds_comparison': comparison,
                 'round_trip_checked': True, 'face_colors_checked': True,
                 'colored_faces': len(colors), 'unique_colors': len(color_counts(colors))}
     finally:

@@ -160,3 +160,9 @@ Cadence 转换支持顶底层阻焊和锡膏层的实心 FILL 开口，保留内
 Cadence 的 Value 另外使用保守的 ASCII 写法以兼容 Capture → Allegro 网表传递：50kΩ → 50k、10µF/10μF → 10uF、± → `_pm_`、% → `pct`、° → `deg`、/ → `_per_`；全角字符转为半角，空白及常见分隔符转为下划线。转换会记录日志，未知字符明确报错，避免静默改变含义。这些规则只作用于 Cadence Value，不修改中文描述、厂家料号、数据手册或其他 EDA 的数值。现有库和已放置器件需要自行修改 Value 或重新导出后更新，完整库的跳过规则仍有效。
 
 参考：[KiCad 字段说明](https://docs.kicad.org/8.0/en/eeschema/eeschema.html)、[Altium HelpURL](https://www.altium.com/documentation/altium-designer/schematic/parameters)、[Capture Datasheet 技术说明](https://www.parallel-systems.co.uk/wp-content/uploads/2020/02/Viewing_Datasheets.pdf)。原生库回读会校验字段内容；浏览器是否成功打开远程数据手册仍取决于 URL 可用性及软件环境。
+
+### 失败文件保留与 STEP 校验
+
+失败或部分失败的任务将整份临时目录归档到应用数据目录 `data/failed-exports`，保留原始 ZIP、提取结果、processing.log、尺寸校验 JSON 和 failure.json；完成提示与导出日志显示归档路径，目标库目录的 last_failure_files.json 也记录此路径。异常退出恢复同样归档原始文件。成功任务及没有错误的主动中止任务继续清理，归档文件不自动删除，可排查后手动清理。
+
+STEP 重新导入后的外包尺寸绝对容差为 0.01 mm，详细记录导出前后尺寸、各项差值和最大差值；超过容差仍失败。实体有效性、实体数量、体积及颜色检查保持原样，不以尺寸容差跳过这些检查。

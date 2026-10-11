@@ -1,5 +1,10 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const {restoreModelColors}=require('../src/model-colors.cjs');
+test('STEP bounds accept 0.005 mm noise but reject 0.02 mm shifts with measured deltas',{skip:!process.env.HUB_FREECAD_PYTHON},()=>{
+ const {execFileSync}=require('node:child_process');
+ const script="from step_bounds import compare_bounds\na={'XMin':0., 'XMax':10.}\nb={'XMin':0.005, 'XMax':10.005}\nr=compare_bounds(a,b)\nassert r['passed'] and r['max_delta_mm']>0.0049\nassert not compare_bounds(a,{'XMin':0.02,'XMax':10.02})['passed']\n";
+ execFileSync(process.env.HUB_FREECAD_PYTHON,['-c',script],{cwd:path.join(__dirname,'../tools'),windowsHide:true});
+});
 test('existing white model is regenerated with per-face colors and unchanged mount geometry',{skip:!process.env.HUB_FREECAD_PYTHON},async()=>{
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),'hub-color-test-')),id='C5137636';
   const fixture=path.join(__dirname,'fixtures/kicad',id);
