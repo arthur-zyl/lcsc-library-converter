@@ -1,3 +1,4 @@
+const {acquireLock}=require('./conversion-lock.cjs');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const {spawn}=require('node:child_process'),{randomUUID}=require('node:crypto');
 const JSZip=require('jszip');
@@ -92,7 +93,7 @@ async function convertLibrary(resources,settings,log=()=>{},control={}) {
     const version=(await run(settings.kicadCli,['version'],config)).trim();if(!/^(?:9|[1-9]\d)\./.test(version))throw new Error('KiCad 转换需要 KiCad 9 或更新版本。');
     const library='LCSC';output=outputRoot;await fs.mkdir(output,{recursive:true});
     const lockFile=path.join(output,'.conversion.lock');
-    try{lock=await fs.open(lockFile,'wx');}catch(error){if(error.code==='EEXIST')throw new Error('该 KiCad 库已有转换任务；若软件异常退出，请删除 .conversion.lock 后重试。');throw error;}
+    lock=await acquireLock(lockFile);
     const pretty=path.join(output,footprintLibrary+'.pretty'),shapes=path.join(output,library+'.3dshapes');await fs.mkdir(pretty,{recursive:true});await fs.mkdir(shapes,{recursive:true});
     const symbolFile=path.join(output,library+'.kicad_sym');
     const symbols=new Map(),results=[],symbolOwners=new Map(),footprintOwners=new Map(),oldEntries=new Map(),obsoleteFootprints=new Set();

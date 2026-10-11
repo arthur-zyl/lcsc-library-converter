@@ -1,3 +1,4 @@
+const {acquireLock}=require('./conversion-lock.cjs');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const {spawn}=require('node:child_process'),{randomUUID}=require('node:crypto');
 const {libraryIndex,matchFootprint}=require('./local-footprints.cjs');
@@ -68,7 +69,7 @@ async function convertCadenceLibrary(resources,settings,log=()=>{},control={}) {
   if(!output||!path.isAbsolute(output))throw new Error('请先设置 Cadence 库导出目录。');
   for(const file of ['tools/bin/tclsh.exe','tools/bin/orDb_Dll_Tcl64.dll','tools/bin/allegro.exe','tools/capture/tclscripts/capDB/olb.xsd'])await fs.access(path.join(root,file)).catch(()=>{throw new Error('Cadence 安装目录缺少 '+file);});
   await fs.mkdir(output,{recursive:true});let lock;const lockFile=path.join(output,'.cadence-conversion.lock');
-  try{lock=await fs.open(lockFile,'wx');}catch(e){if(e.code==='EEXIST')throw new Error('该 Cadence 库正在转换；异常退出后请确认无任务再移除 .cadence-conversion.lock。');throw e;}
+  lock=await acquireLock(lockFile);
   const scratch=await fs.mkdtemp(path.join(os.tmpdir(),'hub-cadence-'));
   try {
     let state={schema:'eda-component-hub/cadence-v1',library,entries:[],files:[]};

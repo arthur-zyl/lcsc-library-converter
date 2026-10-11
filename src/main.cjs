@@ -5,6 +5,7 @@ const { attachDiscovery } = require('./discovery-session.cjs');
 const {createJob,cleanupJob,runJob}=require('./export-pipeline.cjs');
 const {ExportLog}=require('./export-log.cjs');
 const {preflight}=require('./preflight.cjs');
+const {recover,checkpoint}=require('./recovery.cjs');
 const {itemResults,exportSelection}=require('./export-results.cjs');
 let exportJournal;
 const { parseDetails } = require('./product-details.cjs');
@@ -106,6 +107,7 @@ async function finishJob(job, error, result) {
   let cleanupMessage='';
   try {await cleanupJob(job);}catch(e){cleanupMessage='临时文件清理失败：'+e.message;log(cleanupMessage);}
   const logPath=await saveExportLog(error,result,job.message);
+  delete store.state.activeExport;await store.persist();
   exportJob=undefined;processing=false;converting=false;conversionProgress='';
   showExportResult({type:'pipeline-result',logPath,target:job.target,converted:result?.converted || 0,failed:job.ids.length-(result?.converted || 0),folder:job.output,stoppedReason:job.stopRequested?'用户中止':job.message?.stoppedReason,message:[result?.results?.some(r=>r.reused)?`已存在并复用 ${result.results.filter(r=>r.reused).length} 个元件。`:null,job.settings[job.target+'FootprintSource']==='eda' && result?.converted?`封装来源：EDA 本地库 ${result.results.filter(r=>r.status==='converted' && r.footprintSource==='eda').length} 个，立创 ${result.results.filter(r=>r.status==='converted' && r.footprintSource!=='eda').length} 个。`:null,error?.message,cleanupMessage,job.message?.pcbCleanup?.status==='delete_failed'?'临时 PCB 删除失败：'+job.message.pcbCleanup.message:''].filter(Boolean).join('\n')});
 }
@@ -148,7 +150,7 @@ function enrichItem(item, retry = false) {
 }
 app.whenReady().then(async () => {
   if (!app.requestSingleInstanceLock()) { if (smoke) throw new Error('Smoke instance could not acquire its isolated lock'); app.quit(); return; }
-  store = await new Store(smoke ? path.join(app.getPath('userData'), 'data') : path.join(ROOT, 'data')).init(); bridge = await new Bridge().start();
+  store = await new Store(smoke ? path.join(app.getPath('userData'), 'data') : path.join(ROOT, 'data')).init(); bridge = await new Bridge().start();await recover(store);
   if(!store.state.freecadPython)store.state.freecadPython=await detectFreeCAD();
   if((!smoke || setupSmoke) && !store.state.setupCompleted && !store.state.setupShown)current='setup';
   if(!store.state.kicadCli)store.state.kicadCli=await detectKiCad();
@@ -250,7 +252,7 @@ app.whenReady().then(async () => {
           exportJournal=new ExportLog(target,ids,paths(store));
           startingExport=true;processing=true;publish();
           try {
-            const job=await createJob(target,ids,paths(store));exportJob=job;
+            const job=await createJob(target,ids,paths(store));exportJob=job;await checkpoint(store,job);delete store.state.recovery;await store.persist();
             for(const item of job.reused)log(`${item.id}：目标库已存在，跳过下载及转换`);
             if(!job.downloadIds.length){await finishJob(job,null,{converted:job.reused.length,results:job.reused,successIds:job.ids});break;}
             if(edaLogin==='signed-out')throw new Error('请先登录立创 EDA，再开始导出。');

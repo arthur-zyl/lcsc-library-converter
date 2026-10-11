@@ -1,3 +1,4 @@
+const {acquireLock}=require('./conversion-lock.cjs');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const {spawn}=require('node:child_process');
 const {readComponent}=require('./easyeda-library.cjs'),{geometry}=require('./altium-geometry.cjs');
@@ -23,7 +24,7 @@ async function convertAltiumLibrary(resources,settings,log=()=>{},control={}){
   const output=settings.altiumDir,library=libraryName(settings.altiumLibraryName||'LCSC');
   if(!output||!path.isAbsolute(output))throw new Error('请设置 AD 库导出目录');
   await fs.mkdir(output,{recursive:true});const lockFile=path.join(output,'.altium-conversion.lock');let lock;
-  try{lock=await fs.open(lockFile,'wx');}catch(e){if(e.code==='EEXIST')throw new Error('该 AD 库正在转换，请等待完成');throw e;}
+  lock=await acquireLock(lockFile);
   const scratch=await fs.mkdtemp(path.join(os.tmpdir(),'hub-altium-'));
   try{
     await runPython(settings,['probe']);
