@@ -159,3 +159,16 @@ CUSTOM_RAIL
 - 有颜色的 STEP 保留面颜色；源 STEP 没有颜色时采用中性灰并写入诊断提示。中间下载和模型文件在正常结束或异常恢复后清理。
 
 回归测试：`npm test`；原生转换测试可设置 `HUB_FREECAD_PYTHON`、`HUB_KICAD_CLI`、`HUB_CADENCE_ROOT` 后运行。`electron . --batch-smoke` 使用模拟立创 EDA 通信和真实 FreeCAD / KiCad，检查 50＋1 分批、失败保留、结果汇总及临时文件清理；不会操作用户已打开的网页。
+
+
+### 精简器件属性
+
+器件库只保留原生位号、数值/型号、描述、封装关联、数据手册，以及厂家名称、厂家料号（MPN）和立创编码（LCSC）。不逐项复制商城的电压、功率、精度、库存、价格等参数。
+
+- KiCad：原生 `Value`、`Description`、`Datasheet`、`Footprint`；厂家/MPN/LCSC 默认隐藏。
+- Capture：原生 `PartValue`、`Reference` 和 `PCB Footprint`，隐藏的厂家/MPN/LCSC/描述/Datasheet 属性。普通 OLB 的 Datasheet 是文本字段，不能仅凭字段保证点击打开；CIS 的浏览字段或额外脚本才提供相应入口。本工具不安装额外 Capture 脚本。
+- AD：原生 Comment/Designator/Description 和封装模型关联，隐藏的厂家/MPN/LCSC；数据手册使用 `HelpURL`，支持 F1 / References → Help，不再重复添加普通 Datasheet 参数。
+
+数值优先取立创器件源码的 `Value`（如 100nF、10kΩ），没有可用数值时使用厂家料号；库条目名称仍使用型号。已存在的完整库继续跳过，不自动覆盖。
+
+参考：[KiCad 字段说明](https://docs.kicad.org/8.0/en/eeschema/eeschema.html)、[Altium HelpURL](https://www.altium.com/documentation/altium-designer/schematic/parameters)、[Capture Datasheet 技术说明](https://www.parallel-systems.co.uk/wp-content/uploads/2020/02/Viewing_Datasheets.pdf)。原生库回读会校验字段内容；浏览器是否成功打开远程数据手册仍取决于 URL 可用性及软件环境。

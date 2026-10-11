@@ -1,3 +1,4 @@
+const {componentFields}=require('./component-fields.cjs');
 const {rectanglePoints,ellipsePoints}=require('./symbol-geometry.cjs');
 const quote=value=>JSON.stringify(String(value??''));
 const number=value=>{const n=Number(value);if(!Number.isFinite(n))throw new Error('符号包含无效坐标');return Number(n.toFixed(6));};
@@ -77,7 +78,8 @@ function convertSymbol(part,entry,library,footprintEntry=entry) {
   const ref=(part.properties.Designator||rootAttrs.find(x=>x[3]==='Designator')?.[4]||'U?').replace(/[?\d]/g,'')||'U';
   const extent=Math.max(...pins.map(p=>p.y))+2.54;
   const property=(key,value,y,hidden=false)=>`(property ${quote(key)} ${quote(value)} (at 0 ${number(y)} 0) (effects (font (size 1.27 1.27))${hidden ? ' hide' : ''}))`;
-  const props=[property('Reference',ref,extent),property('Value',part.name,extent+2.54),property('Footprint',library+':'+footprintEntry,0,true),property('Datasheet',part.properties.Datasheet||'',0,true),property('LCSC',part.id,0,true),property('Manufacturer',part.properties.Manufacturer||'',0,true),property('MPN',part.properties['Manufacturer Part']||part.name,0,true),property('ki_description',part.description,0,true)];
+  const fields=componentFields(part);
+  const props=[property('Reference',ref,extent),property('Value',fields.value,extent+2.54),property('Footprint',library+':'+footprintEntry,0,true),property('Datasheet',fields.datasheet,0,true),property('LCSC',part.id,0,true),property('Manufacturer',fields.manufacturer,0,true),property('MPN',fields.mpn,0,true),property('Description',fields.description,0,true)];
   return {text:`(symbol ${quote(entry)} ${pins.every(p=>!p.numberVisible) ? '(pin_numbers hide)' : ''} (pin_names (offset 0.508)${pins.every(p=>!p.nameVisible) ? ' hide' : ''}) (in_bom yes) (on_board yes) ${props.join('\n')} ${bodies.join('\n')})`,pins,units:units.length,warnings};
 }
 module.exports={convertSymbol,quote,mm};

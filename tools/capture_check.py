@@ -23,6 +23,11 @@ else:
         for index, unit in enumerate(units, 1):
             def user_props(view):
                 return {p.find('Defn').get('name'): p.find('Defn').get('val') for p in view.findall('SymbolUserProp')}
+            for field in ['PartValue', 'Reference']:
+                source_field=source_units[index-1].find('NormalView/'+field+'/Defn')
+                actual_field=unit.find('NormalView/'+field+'/Defn')
+                if source_field is not None and (actual_field is None or actual_field.get('name') != source_field.get('name')):
+                    raise ValueError('Native standard field mismatch: '+field+' for '+item['entry'])
             actual_props = user_props(unit.find('NormalView'))
             source_props = user_props(source_units[index-1].find('NormalView'))
             # Capture folds description whitespace and removes trailing blanks.

@@ -1,3 +1,4 @@
+const {componentFields}=require('./component-fields.cjs');
 const {convertSymbol}=require('./kicad-symbol.cjs'),sx=require('./sexpr.cjs');
 const {pathPoints}=require('./cadence-footprint.cjs');
 const {isSupplyPinName}=require('./cadence-symbol.cjs');
@@ -47,6 +48,7 @@ function geometry(part,entry,footprintEntry){
   }
   if(!pads.length)throw new Error('封装没有焊盘');
   const a=new Set(pins.map(p=>p.number)),b=new Set(pads.map(p=>p.number).filter(Boolean));if(a.size!==b.size||[...a].some(n=>!b.has(n)))throw new Error('AD 符号引脚与封装焊盘编号不一致');
-  return {pins,units,unitCount:symbol.units,pads,tracks,regions,texts,warnings:[...new Set(warnings)],properties:{LCSC:part.id,MPN:part.name,Manufacturer:part.properties.Manufacturer||'',Datasheet:part.properties.Datasheet||''},description:part.description,reference:(part.properties.Designator||'U?').replace(/[?\d]/g,'')+'?'};
+  const fields=componentFields(part);
+  return {value:fields.value,pins,units,unitCount:symbol.units,pads,tracks,regions,texts,warnings:[...new Set(warnings)],properties:{LCSC:part.id,MPN:fields.mpn,Manufacturer:fields.manufacturer,...(fields.datasheet?{HelpURL:fields.datasheet}:{})},description:part.description,reference:(part.properties.Designator||'U?').replace(/[?\d]/g,'')+'?'};
 }
 module.exports={geometry};

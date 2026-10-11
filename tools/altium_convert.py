@@ -71,7 +71,7 @@ def build_symbol(lib,j):
                 s.add_arc(round(cx),round(cy),round(math.hypot(x1-cx,y1-cy)),start_angle=a,end_angle=b,**kw)
     for name,value in g['properties'].items():s.add_parameter(name,value,is_hidden=True)
     y=max(p['y'] for p in g['pins'])+2.54
-    s.add_designator(g['reference'],0,round(mil(y)));s.add_parameter('Comment',j['name'],x=0,y=round(mil(y+2.54)))
+    s.add_designator(g['reference'],0,round(mil(y)));s.add_parameter('Comment',g.get('value',j['name']),x=0,y=round(mil(y+2.54)))
     s.add_footprint(j['footprintEntry'],library_name=j['library']+'.PcbLib')
     return s
 def build_footprint(lib,j):
@@ -149,6 +149,8 @@ def main():
         if symbol_signature(sch2.get_symbol(name))!=pins:raise ValueError('Existing AD symbol changed: '+name)
     for name,pads in old_footprints.items():
         if pcb_signature(footprint(pcb2,name))!=pads:raise ValueError('Existing AD footprint changed: '+name)
+    comment=next((p for p in s2.parameters if p.name=='Comment'), None)
+    if comment is None or comment.text!=j['geometry'].get('value',j['name']):raise ValueError('AD native Comment mismatch')
     if s2.description!=j['geometry']['description']:raise ValueError('AD description Unicode mismatch')
     for name,value in j['geometry']['properties'].items():
         if not any(p.name==name and p.text==value for p in s2.parameters):raise ValueError('AD property mismatch: '+name)
