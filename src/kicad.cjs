@@ -80,7 +80,7 @@ function patchFootprint(text,part,entry,model,pads) {
   const value=sx.children(tree,'property').find(x=>sx.value(x)==='Value');if(value)value[2]=sx.str(part.name);
   return {text:sx.write(tree)+'\n',pads:converted};
 }
-async function convertLibrary(resources,settings,log=()=>{}) {
+async function convertLibrary(resources,settings,log=()=>{},control={}) {
   const footprintLibrary=libraryName(settings.kicadFootprintLibraryName===undefined ? 'LCSC' : settings.kicadFootprintLibraryName);
   if(!resources.length)throw new Error('没有可转换的本地资源');
   if(!settings.kicadCli || !path.isAbsolute(settings.kicadCli))throw new Error('请先在设置中选择 KiCad 的 kicad-cli.exe');
@@ -115,7 +115,8 @@ async function convertLibrary(resources,settings,log=()=>{}) {
     const unique=[...new Map(resources.map(x=>[x.id,x])).values()];
     const previous=await existingLibrary('kicad',unique.map(r=>r.id),settings);
     for(let index=0;index<unique.length;index++) {
-      const resource=unique[index];log(`KiCad ${index+1}/${unique.length}：${resource.id}`);
+      if(control.isStopped?.())break;
+      const resource=unique[index];control.onProgress?.({currentId:resource.id,completed:index,total:unique.length});log(`KiCad ${index+1}/${unique.length}：${resource.id}`);
       try {
         const prior=previous.get(resource.id);
         if(prior?.complete){log(`${resource.id}：原理图库、封装和模型已存在，跳过转换`);results.push({...prior.report,id:resource.id,status:'converted',reused:true,reusedSymbol:true,reusedFootprint:true,entry:prior.entry,footprintEntry:prior.footprintEntry,warnings:['已存在，跳过转换。']});continue;}
@@ -172,7 +173,7 @@ async function convertLibrary(resources,settings,log=()=>{}) {
         if(report.model.placeholder)report.warnings.push('3D 模型为按器件高度生成的占位模型；再次导出时允许真实模型替换。');
         await atomicWrite(targetModel+'.json',JSON.stringify({modelName:part.id+'.step',kind:report.model.kind,placeholder:report.model.placeholder,sourceModelUuid:report.model.sourceModelUuid,sourceModelName:report.model.sourceModelName,updatedAt:report.model.updatedAt},null,2));
         await fs.writeFile(path.join(output,part.id+'_conversion.json'),JSON.stringify(report,null,2));results.push(report);
-      } catch(error) {results.push({id:resource.id,status:'failed',folder:resource.folder,message:error.message});log(`${resource.id} 转换失败：${error.message}`);}
+      } catch(error) {results.push({id:resource.id,status:'failed',folder:resource.folder,message:error.message});log(`${resource.id} 转换失败：${error.message}`);} finally {control.onProgress?.({currentId:resource.id,completed:index+1,total:unique.length});}
     }
     await fs.writeFile(path.join(output,'conversion_report.json'),JSON.stringify({schema:'component-hub-kicad/v1',kiCadVersion:version,library,createdAt:new Date().toISOString(),results},null,2));
     const converted=results.filter(x=>x.status==='converted').length;

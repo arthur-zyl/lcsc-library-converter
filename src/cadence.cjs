@@ -62,7 +62,7 @@ async function commitFiles(output,files,owned){
   } catch(error){for(const item of done.reverse()){const dest=path.join(output,item.name);if(item.had)await fs.copyFile(path.join(backup,item.name),dest);else await fs.unlink(dest).catch(()=>{});}throw error;}
   finally{await fs.rm(backup,{recursive:true,force:true});}
 }
-async function convertCadenceLibrary(resources,settings,log=()=>{}) {
+async function convertCadenceLibrary(resources,settings,log=()=>{},control={}) {
   const root=settings.cadenceRoot,output=settings.cadenceDir,library=libraryName(settings.cadenceLibraryName||'LCSC');
   if(!root||!path.isAbsolute(root))throw new Error('请先在 Cadence 设置中选择 SPB 安装目录。');
   if(!output||!path.isAbsolute(output))throw new Error('请先设置 Cadence 库导出目录。');
@@ -85,6 +85,8 @@ async function convertCadenceLibrary(resources,settings,log=()=>{}) {
     const unique=[...new Map(resources.map(r=>[r.id,r])).values()];
     const previous=await existingLibrary('cadence',unique.map(r=>r.id),settings);
     for(const [index,r] of unique.entries()) {
+      if(control.isStopped?.())break;
+      control.onProgress?.({currentId:r.id,completed:index,total:unique.length});
       log(`Cadence ${index+1}/${unique.length}：${r.id}，转换符号和封装`);
       try {
         const prior=previous.get(r.id);
@@ -145,7 +147,7 @@ async function convertCadenceLibrary(resources,settings,log=()=>{}) {
         // All components using this footprint must see the same model status.
         for(const other of entries.values())if(other.footprintEntry===footprintEntry){other.modelName=modelName;other.modelSource=selectedSource;if(!selectedSource.placeholder)other.warnings=other.warnings.filter(w=>!w.startsWith('3D 模型为按器件高度生成的占位模型'));}
         results.push({id:part.id,status:'converted',reusedSymbol:!!prior?.symbolExists,reusedFootprint:!!prior?.footprintExists||!!shareable,modelReplaced:replaceModel,modelSource:selectedSource,modelName:model.modelName,entry,footprintEntry,footprintSource:record.footprintSource,sourceFootprint:record.sourceFootprint,pins:symbol.pins.length,pads:fp.pads.length,warnings:record.warnings});
-      }catch(e){log(`${r.id} Cadence 转换失败：${e.message}`);results.push({id:r.id,status:'failed',message:e.message});}
+      }catch(e){log(`${r.id} Cadence 转换失败：${e.message}`);results.push({id:r.id,status:'failed',message:e.message});} finally {control.onProgress?.({currentId:r.id,completed:index+1,total:unique.length});}
     }
     if(pending.length || symbolsChanged) {
       const files=new Map();

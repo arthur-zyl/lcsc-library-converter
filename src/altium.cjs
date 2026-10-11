@@ -19,7 +19,7 @@ async function localIndex(settings,scratch,log){
   await walk(settings.altiumFootprintDir,0);if(files.length>2000)throw new Error('AD 本地库文件过多，请选择更具体的目录');
   const output=path.join(scratch,'local_index.json'),input=path.join(scratch,'index_input.json');await fs.writeFile(input,JSON.stringify({files,output}));const info=await runPython(settings,['index',input]);if(info.trim())log(info.trim());return JSON.parse(await fs.readFile(output,'utf8'));
 }
-async function convertAltiumLibrary(resources,settings,log=()=>{}){
+async function convertAltiumLibrary(resources,settings,log=()=>{},control={}){
   const output=settings.altiumDir,library=libraryName(settings.altiumLibraryName||'LCSC');
   if(!output||!path.isAbsolute(output))throw new Error('请设置 AD 库导出目录');
   await fs.mkdir(output,{recursive:true});const lockFile=path.join(output,'.altium-conversion.lock');let lock;
@@ -34,6 +34,8 @@ async function convertAltiumLibrary(resources,settings,log=()=>{}){
     let index=[];try{index=await localIndex(settings,scratch,log);}catch(e){log('AD 本地库读取失败，回退立创：'+e.message);}
     const results=[],unique=[...new Map(resources.map(r=>[r.id,r])).values()];
     for(const [i,r] of unique.entries()){
+      if(control.isStopped?.())break;
+      control.onProgress?.({currentId:r.id,completed:i,total:unique.length});
       log(`AD ${i+1}/${unique.length}：${r.id}，转换符号和封装`);
       try{
         const prior=(await existingLibrary('altium',[r.id],settings)).get(r.id);
@@ -81,7 +83,7 @@ async function convertAltiumLibrary(resources,settings,log=()=>{}){
         state=next;entries.clear();for(const e of state.entries)entries.set(e.id,e);symbols.set(entry,r.id);footprints.set(footprintEntry,r.id);
         log(`${r.id} AD 转换完成，${verified.pins} 引脚 / ${verified.pads} 焊盘；${replace?'真实模型替换占位模型':selected.placeholder?'高度占位模型':'STEP 已嵌入'}`);
         results.push({id:r.id,status:'converted',entry,footprintEntry,footprintSource:source,pins:verified.pins,pads:verified.pads,units:verified.units,modelSource:selected,modelReplaced:replace,warnings:g.warnings});
-      }catch(e){log(`${r.id} AD 转换失败：${e.message}`);results.push({id:r.id,status:'failed',message:e.message});}
+      }catch(e){log(`${r.id} AD 转换失败：${e.message}`);results.push({id:r.id,status:'failed',message:e.message});} finally {control.onProgress?.({currentId:r.id,completed:i+1,total:unique.length});}
     }
     const report={provider:'altium',library,folder:output,converted:results.filter(r=>r.status==='converted').length,failed:results.filter(r=>r.status==='failed').length,results};
     const owned=new Set(state.files);state.files=[...new Set([...state.files,'hub_altium.json','conversion_report.json'])];

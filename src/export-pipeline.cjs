@@ -41,12 +41,13 @@ async function runJob(job, zip, progress, deps={}) {
   const manifest = JSON.parse(await manifestFile.async('string'));
   if (manifest.schema !== 'lcsc-cadence-batch/v1' || !Array.isArray(manifest.requestedIds) || [...manifest.requestedIds].sort().join(',') !== [...(job.downloadIds || job.ids)].sort().join(',')) throw new Error('下载包与当前导出清单不一致。');
   const local = {root:job.root,state:{...job.settings,resourceDir:path.join(job.root,'resources'),resources:[]},persist:async()=>{}};
-  progress('提取独立模型');
-  const resources = await (deps.processZip || processZip)(zip,local,message=>progress('提取独立模型',message));
+  const control={isStopped:()=>!!job.stopRequested,stopFile:path.join(job.root,'stop-requested'),onProgress:p=>progress('提取独立模型',undefined,p)};
+  progress('提取独立模型',undefined,{completed:0,total:job.downloadIds.length});
+  const resources = await (deps.processZip || processZip)(zip,local,message=>progress('提取独立模型',message),control);
   if (resources.some(item=>!job.ids.includes(item.id))) throw new Error('模型提取结果与导出清单不一致。');
   progress('转换 '+({kicad:'KiCad',cadence:'Cadence',altium:'Altium Designer'}[job.target])+' 库');
   const convert = deps.convert || ({kicad:convertLibrary,cadence:convertCadenceLibrary,altium:convertAltiumLibrary}[job.target]);
-  const result = await convert(resources,job.settings,message=>progress('转换元件库',message));
+  const result = await convert(resources,job.settings,message=>progress('转换元件库',message),{...control,onProgress:p=>progress('转换元件库',undefined,p)});
   result.results=[...(job.reused || []),...result.results];
   const successIds = [...new Set(result.results.filter(item=>item.status==='converted').map(item=>item.id))];
   if (successIds.some(id=>!job.ids.includes(id))) throw new Error('库转换结果与导出清单不一致。');

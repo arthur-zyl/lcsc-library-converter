@@ -74,7 +74,7 @@ function snapshot() { const view = current === 'eda' ? eda : current === 'shop' 
       back: view?.webContents.navigationHistory.canGoBack() || false, forward: view?.webContents.navigationHistory.canGoForward() || false } }; }
 function publish() { if (win && !win.isDestroyed() && store && bridge) {
   win.webContents.send('hub:state', snapshot());
-  if (exportProgress && edaCover && !edaCover.webContents.isDestroyed()) edaCover.webContents.send('export:progress', {...exportProgress, requestId:bridge.active?.requestId, stopRequested:!!bridge.active?.stopRequested, canStop:!!bridge.active && !['删除临时 PCB','打包导出文件','下载导出文件'].includes(exportProgress.stage)});
+  if (exportProgress && edaCover && !edaCover.webContents.isDestroyed()) edaCover.webContents.send('export:progress', {...exportProgress, requestId:exportJob?.requestId, stopRequested:!!exportJob?.stopRequested, canStop:!!exportJob && !exportJob.finishing});
   if (shop && !shop.webContents.isDestroyed()) shop.webContents.send('shop:queue', store.state.queue.map(x => x.id));
 } }
 function layout() { if (!win || win.isDestroyed()) return; const [w, h] = win.getContentSize();
@@ -100,24 +100,25 @@ async function finishJob(job, error, result) {
   if(!result && job.reused?.length)result={results:job.reused,successIds:job.reused.map(r=>r.id),converted:job.reused.length};
   if(error)log(error.message);
   store.state.exportItemResults={...store.state.exportItemResults,[job.target]:{...store.state.exportItemResults?.[job.target],...itemResults(job,result,error)}};await store.persist();
-  await fs.writeFile(path.join(job.output,'last_export_report.json'),JSON.stringify({target:job.target,requestedIds:job.ids,successIds:result?.successIds || [],error:error?.message,stoppedReason:job.message?.stoppedReason,logs:logs.slice(-30)},null,2)).catch(e=>log('诊断报告保存失败：'+e.message));
+  await fs.writeFile(path.join(job.output,'last_export_report.json'),JSON.stringify({target:job.target,requestedIds:job.ids,successIds:result?.successIds || [],error:error?.message,stoppedReason:job.stopRequested?'用户中止':job.message?.stoppedReason,logs:logs.slice(-30)},null,2)).catch(e=>log('诊断报告保存失败：'+e.message));
   if(result?.successIds.length)await store.removeMany(result.successIds).catch(e=>log('清单更新失败：'+e.message));
-  exportProgress={...exportProgress,stage:'清理临时文件',completed:result?.converted || 0};publish();
+  exportProgress={...exportProgress,stage:'清理临时文件',percent:100,completed:result?.converted || 0};publish();
   let cleanupMessage='';
   try {await cleanupJob(job);}catch(e){cleanupMessage='临时文件清理失败：'+e.message;log(cleanupMessage);}
   const logPath=await saveExportLog(error,result,job.message);
   exportJob=undefined;processing=false;converting=false;conversionProgress='';
-  showExportResult({type:'pipeline-result',logPath,target:job.target,converted:result?.converted || 0,failed:job.ids.length-(result?.converted || 0),folder:job.output,stoppedReason:job.message?.stoppedReason,message:[result?.results?.some(r=>r.reused)?`已存在并复用 ${result.results.filter(r=>r.reused).length} 个元件。`:null,job.settings[job.target+'FootprintSource']==='eda' && result?.converted?`封装来源：EDA 本地库 ${result.results.filter(r=>r.status==='converted' && r.footprintSource==='eda').length} 个，立创 ${result.results.filter(r=>r.status==='converted' && r.footprintSource!=='eda').length} 个。`:null,error?.message,cleanupMessage,job.message?.pcbCleanup?.status==='delete_failed'?'临时 PCB 删除失败：'+job.message.pcbCleanup.message:''].filter(Boolean).join('\n')});
+  showExportResult({type:'pipeline-result',logPath,target:job.target,converted:result?.converted || 0,failed:job.ids.length-(result?.converted || 0),folder:job.output,stoppedReason:job.stopRequested?'用户中止':job.message?.stoppedReason,message:[result?.results?.some(r=>r.reused)?`已存在并复用 ${result.results.filter(r=>r.reused).length} 个元件。`:null,job.settings[job.target+'FootprintSource']==='eda' && result?.converted?`封装来源：EDA 本地库 ${result.results.filter(r=>r.status==='converted' && r.footprintSource==='eda').length} 个，立创 ${result.results.filter(r=>r.status==='converted' && r.footprintSource!=='eda').length} 个。`:null,error?.message,cleanupMessage,job.message?.pcbCleanup?.status==='delete_failed'?'临时 PCB 删除失败：'+job.message.pcbCleanup.message:''].filter(Boolean).join('\n')});
 }
 async function processJobIfReady(job) {
   if(exportJob!==job || job.running || job.finishing || !job.message || !job.file)return;
   job.running=true;clearTimeout(job.timer);
   if(job.message.fileName!==job.fileName)return finishJob(job,new Error('下载文件与本次任务不一致。'));
   try {
-    const result=await runJob(job,job.file,(stage,message)=>{
+    const result=await runJob(job,job.file,(stage,message,p)=>{
       converting=stage.startsWith('转换');conversionProgress=message || stage;
-      exportProgress={total:job.ids.length,completed:0,currentId:'',stage:message?stage+'：'+String(message).slice(0,180):stage};
-      log(message || stage);
+      const base=converting?60:35,span=converting?35:25;const percent=base+span*(p?.total?p.completed/p.total:0);job.percent=Math.max(job.percent || 0,percent);
+      exportProgress={total:job.ids.length,completed:p?.completed ?? exportProgress?.completed ?? 0,currentId:p?.currentId || exportProgress?.currentId || '',percent:job.percent,stage:message?stage+'：'+String(message).slice(0,180):stage};
+      if(message || !p)log(message || stage);else publish();
     });
     await finishJob(job,null,result);
   }catch(e){await finishJob(job,e);}
@@ -156,7 +157,7 @@ app.whenReady().then(async () => {
     if (m.type === 'progress' && m.progress && bridge.active) {
       const total = bridge.active.ids.length, p = m.progress;
       exportJournal?.add(`立创 EDA 阶段：${p.stage || ''}；器件 ${p.currentId || ''}；${p.completed}/${total}`);
-      if (Number.isInteger(p.completed) && p.completed >= 0 && p.completed <= total && typeof p.stage === 'string') exportProgress = {total:exportJob?.ids.length || total, completed:p.completed+(exportJob?.reused.length || 0),currentId:bridge.active.ids.includes(p.currentId) ? p.currentId : '',stage:p.stage.slice(0,120)};
+      if (Number.isInteger(p.completed) && p.completed >= 0 && p.completed <= total && typeof p.stage === 'string') exportProgress = {total:exportJob?.ids.length || total, completed:p.completed+(exportJob?.reused.length || 0),currentId:bridge.active.ids.includes(p.currentId) ? p.currentId : '',stage:p.stage.slice(0,120),percent:35*p.completed/Math.max(total,1)};
     }
     if (['hello','auth'].includes(m.type) && typeof m.loggedIn === 'boolean') setLogin(m.loggedIn ? 'signed-in' : 'signed-out');
     if (['exported','failed'].includes(m.type) && exportJob?.requestId===m.requestId) {
@@ -178,8 +179,8 @@ app.whenReady().then(async () => {
   await edaCover.webContents.loadFile(path.join(ROOT,'ui/eda-lock.html'));
   ipcMain.handle('export:stop',(event,requestId)=>{
     if(event.sender!==edaCover.webContents) throw new Error('来源无效');
-    if(!edaLocked || requestId!==bridge.active?.requestId || ['删除临时 PCB','打包导出文件','下载导出文件'].includes(exportProgress?.stage)) return {ok:false,message:'任务正在收尾或已经结束。'};
-    if(bridge.stop()) log('已请求中止，等待当前元件处理和清理完成；已导出的结果会保留。');
+    if(!edaLocked || !exportJob || exportJob.finishing || requestId!==exportJob.requestId) return {ok:false,message:'任务正在收尾或已经结束。'};
+    exportJob.stopRequested=true;void fs.writeFile(path.join(exportJob.root,'stop-requested'),'stop').catch(e=>log(e.message));bridge.stop();log('已请求中止，等待当前元件处理和清理完成；已导出的结果会保留。');
     return {ok:true};
   });
   resultCover = new WebContentsView({webPreferences:{preload:path.join(__dirname,'result-preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false}});

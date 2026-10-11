@@ -6,7 +6,7 @@ window.exportProgress.onState(value => {
   document.getElementById('progress-part').textContent = value.currentId || '批量任务';
   document.getElementById('progress-stage').textContent = value.stage;
   const bar = document.getElementById('export-progress');
-  bar.max = Math.max(value.total, 1); bar.value = value.completed;
+  bar.max = 100; bar.value = value.percent ?? 35*value.completed/Math.max(value.total,1);
   stopButton.disabled = !value.requestId || value.stopRequested || !value.canStop;
   stopButton.textContent = value.stopRequested ? '正在中止…' : value.canStop ? '中止任务' : '正在保存结果…';
   document.getElementById('stop-hint').textContent = value.stopRequested ? '完成当前元件并清理后中止，已取得的结果会保留。' : '立创 EDA 操作已锁定，完成后自动恢复。';

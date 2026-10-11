@@ -61,6 +61,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('download', type=Path)
     parser.add_argument('--out-dir', type=Path)
+    parser.add_argument('--stop-file', type=Path)
     parser.add_argument('--step-origin-x-mm', type=float)
     parser.add_argument('--step-origin-y-mm', type=float)
     args = parser.parse_args()
@@ -90,7 +91,11 @@ def main():
         else:
             single = json.loads(archive.read('manifest.json').decode('utf-8'))
             entries = [(single.get('partId'), '')]
-        for part_id, prefix in entries:
+        for index, (part_id, prefix) in enumerate(entries):
+            if args.stop_file and args.stop_file.exists():
+                results.extend({'partId': i, 'status': 'not_started'} for i, _ in entries[index:])
+                break
+            print('HUB_PROGRESS '+json.dumps({'currentId':part_id,'completed':index,'total':len(entries)}), flush=True)
             if prefix + 'manifest.json' not in names:
                 results.append({'partId': part_id, 'status': 'not_started'})
                 continue
@@ -99,10 +104,11 @@ def main():
             except Exception as error:
                 result = {'partId': part_id, 'status': 'failed', 'message': str(error)}
             results.append(result)
-            print(str(part_id) + ': ' + result['status'])
+            print(str(part_id) + ': ' + result['status'], flush=True)
+            print('HUB_PROGRESS '+json.dumps({'currentId':part_id,'completed':index+1,'total':len(entries)}), flush=True)
     (target / 'processing_summary.json').write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding='utf-8')
     print('Results: ' + str(target))
-    if not any(r['status'] == 'extracted' for r in results):
+    if not any(r['status'] == 'extracted' for r in results) and not (args.stop_file and args.stop_file.exists()):
         raise RuntimeError('No models extracted; see processing_summary.json')
     if any(r['status'] != 'extracted' for r in results):
         print('Some parts were not extracted. See processing_summary.json.')

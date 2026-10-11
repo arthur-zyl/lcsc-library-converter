@@ -43,3 +43,11 @@ test('invalid target and missing native converter fail before starting a job',as
   await assert.rejects(createJob('unknown',['C123'],{}),/请选择/);
   await assert.rejects(createJob('kicad',['C123'],{freecadPython:process.execPath,kicadDir:output}),/安装路径/);
 });
+
+test('whole pipeline forwards structured progress and cooperative stop to both phases',async t=>{
+ const {job,zip}=await fixture(t);const events=[];
+ const result=await runJob(job,zip,(stage,message,p)=>{if(p)events.push({stage,...p});},{
+  processZip:async(_file,_store,_log,control)=>{assert.equal(control.stopFile,path.join(job.root,'stop-requested'));control.onProgress({completed:1,total:2,currentId:'C123'});return [{id:'C123'},{id:'C456'}];},
+  convert:async(_items,_settings,_log,control)=>{control.onProgress({completed:1,total:2,currentId:'C123'});job.stopRequested=true;assert.equal(control.isStopped(),true);return {results:[{id:'C123',status:'converted'}]};}
+ });assert.equal(events.length,3);assert.equal(result.converted,1);assert.equal(result.failed,1);
+});

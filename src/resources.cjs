@@ -3,16 +3,16 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { paths } = require('./settings.cjs');
 const { modelInfo } = require('./model-info.cjs');
-async function processZip(zip, store, log) {
+async function processZip(zip, store, log, control={}) {
   await fs.access(store.state.freecadPython);
   const output = paths(store).resourceDir; await fs.mkdir(output, { recursive: true });
   const priorRuns = new Set(await fs.readdir(output));
   const script = path.join(__dirname, '../tools/process_download.py');
   let failure;
   try {await new Promise((resolve, reject) => {
-    const child = spawn(store.state.freecadPython, [script, zip, '--out-dir', output], { windowsHide: true, env: { ...process.env, PYTHONUTF8: '1' } });
-    child.stdout.on('data', x => log(x.toString('utf8'))); child.stderr.on('data', x => log(x.toString('utf8')));
-    child.on('error', reject); child.on('close', code => code === 0 ? resolve() : reject(new Error('FreeCAD 处理失败；请查看诊断报告。')));
+    const child = spawn(store.state.freecadPython, [script, zip, '--out-dir', output,...(control.stopFile?['--stop-file',control.stopFile]:[])], { windowsHide: true, env: { ...process.env, PYTHONUTF8: '1' } });
+    let pending='';child.stdout.on('data',x=>{pending+=x.toString('utf8');let at;while((at=pending.indexOf('\n'))>=0){const line=pending.slice(0,at).trim();pending=pending.slice(at+1);if(line.startsWith('HUB_PROGRESS ')){try{control.onProgress?.(JSON.parse(line.slice(13)));}catch{}}else if(line)log(line);}}); child.stderr.on('data', x => log(x.toString('utf8')));
+    const timer=setTimeout(()=>{child.kill();reject(new Error('FreeCAD 处理超时，请重试或查看日志。'));},30*60*1000);child.on('error',e=>{clearTimeout(timer);reject(e);});child.on('close',code=>{clearTimeout(timer);if(pending)log(pending);code===0?resolve():reject(new Error('FreeCAD 处理失败；请查看诊断报告。'));});
   });
   }catch(error){failure=error;}
   for(const run of await fs.readdir(output)) {
