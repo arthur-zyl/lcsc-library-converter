@@ -171,4 +171,6 @@ CUSTOM_RAIL
 
 数值优先取立创器件源码的 `Value`（如 100nF、10kΩ），没有可用数值时使用厂家料号；库条目名称仍使用型号。已存在的完整库继续跳过，不自动覆盖。
 
+Cadence 的 Value 另外使用保守的 ASCII 写法以兼容 Capture → Allegro 网表传递：50kΩ → 50k、10µF/10μF → 10uF、± → `_pm_`、% → `pct`、° → `deg`、/ → `_per_`；全角字符转为半角，空白及常见分隔符转为下划线。转换会记录日志，未知字符明确报错，避免静默改变含义。这些规则只作用于 Cadence Value，不修改中文描述、厂家料号、数据手册或其他 EDA 的数值。现有库和已放置器件需要自行修改 Value 或重新导出后更新，完整库的跳过规则仍有效。
+
 参考：[KiCad 字段说明](https://docs.kicad.org/8.0/en/eeschema/eeschema.html)、[Altium HelpURL](https://www.altium.com/documentation/altium-designer/schematic/parameters)、[Capture Datasheet 技术说明](https://www.parallel-systems.co.uk/wp-content/uploads/2020/02/Viewing_Datasheets.pdf)。原生库回读会校验字段内容；浏览器是否成功打开远程数据手册仍取决于 URL 可用性及软件环境。

@@ -1,4 +1,5 @@
 const {componentFields}=require('./component-fields.cjs');
+const {cadenceValue}=require('./cadence-value.cjs');
 // Capture stores symbol coordinates in 10 mil units; Y points down.
 const {convertSymbol}=require('./kicad-symbol.cjs');
 const sx=require('./sexpr.cjs');
@@ -32,6 +33,7 @@ function captureSymbol(part,entry,footprint,rules) {
   if(converted.pins.some(p=>p.type==='power_out'))warnings.push('Capture 的 Power 引脚类型不区分电源输入和输出。');
   if(converted.pins.some(p=>[p.x,p.y,p.length].some(v=>Math.abs(coord(v)*0.254-v)>0.00001)))warnings.push('符号坐标按 Capture 的 10 mil 分辨率取整。');
   const fields=componentFields(part);
+  const compatibleValue=cadenceValue(fields.value);warnings.push(...compatibleValue.warnings);
   const ref=(part.properties.Designator||'U?').replace(/[?\d]/g,'')||'U';
   const expected=[];
   const point=node=>[coord(sx.value(node)), -coord(sx.value(node,2))];
@@ -73,7 +75,7 @@ function captureSymbol(part,entry,footprint,rules) {
     const xs=bounds.map(p=>p[0]),ys=bounds.map(p=>p[1]),box={x1:Math.floor(Math.min(...xs)),x2:Math.ceil(Math.max(...xs)),y1:Math.floor(Math.min(...ys)),y2:Math.ceil(Math.max(...ys))};
     const display=name=>def('SymbolDisplayProp',{locX:box.x1,locY:box.y1-(name==='Value'?14:24),name,rotation:0,textJustification:0},font('PropFont')+def('PropColor',{val:48})+def('PropDispType',{ValueIfValueExist:0,val:1}));
     const props={LCSC:part.id,Manufacturer:fields.manufacturer,MPN:fields.mpn,Description:fields.description,Datasheet:fields.datasheet};
-    const view=display('Part Reference')+display('Value')+def('SymbolColor',{val:48})+def('SymbolBBox',box)+def('IsPinNumbersVisible',{val:pins.some(p=>p.numberVisible)?1:0})+def('IsPinNamesRotated',{val:1})+def('IsPinNamesVisible',{val:pins.some(p=>p.nameVisible)?1:0})+def('PartValue',{name:fields.value})+def('Reference',{name:ref})+Object.entries(props).map(([name,val])=>def('SymbolUserProp',{name,val})).join('')+graphics+pinXml;
+    const view=display('Part Reference')+display('Value')+def('SymbolColor',{val:48})+def('SymbolBBox',box)+def('IsPinNumbersVisible',{val:pins.some(p=>p.numberVisible)?1:0})+def('IsPinNamesRotated',{val:1})+def('IsPinNamesVisible',{val:pins.some(p=>p.nameVisible)?1:0})+def('PartValue',{name:compatibleValue.value})+def('Reference',{name:ref})+Object.entries(props).map(([name,val])=>def('SymbolUserProp',{name,val})).join('')+graphics+pinXml;
     return def('LibPart',{CellName:entry+(converted.units>1?'-'+(index+1):'')},def('NormalView',{suffix:'.Normal'},view)+def('PhysicalPart',{},physical));
   }).join('');
   return applyPowerPinTypes({xml:def('Package',{alphabeticNumbering:0,isHomogeneous:converted.units===1?1:0,name:entry,pcbFootprint:footprint,pcbLib:'',refdesPrefix:ref},units),pins:expected,units:converted.units,warnings:[...new Set(warnings)]},rules);
