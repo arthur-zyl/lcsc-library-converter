@@ -50,7 +50,10 @@ function modelPlacement(source,target){
 function useKiCadFootprint(text,part,entry,model,sourcePads){
   const tree=sx.parse(text);if(sx.name(tree)!=='footprint')throw new Error('本地封装格式无效');tree[1]=sx.str(entry);
   const pads=sx.children(tree,'pad').map(p=>({number:sx.value(p),type:sx.value(p,2),x:Number(sx.value(sx.child(p,'at'))),y:Number(sx.value(sx.child(p,'at'),2)),width:Number(sx.value(sx.child(p,'size'))),height:Number(sx.value(sx.child(p,'size'),2))}));
-  const placement=modelPlacement(sourcePads.map(p=>({number:String(p[5]??''),x:Number(p[6])*0.0254,y:Number(p[7])*0.0254})),pads.map(p=>({...p,y:-p.y})));
+  const alignment=modelPlacement(sourcePads.map(p=>({number:String(p[5]??''),x:Number(p[6])*0.0254,y:Number(p[7])*0.0254})),pads.map(p=>({...p,y:-p.y})));
+  // STEP uses right-handed XY. KiCad applies the negative of the model's
+  // stored Euler angle (independently of the footprint's 2D angle).
+  const placement={...alignment,angle:-alignment.angle || 0};
   for(let i=tree.length-1;i>=0;i--)if(['model','embedded_files'].includes(sx.name(tree[i])))tree.splice(i,1);
   tree.push(sx.parse(`(model ${JSON.stringify(model.replaceAll('\\','/'))} (offset (xyz ${placement.x} ${placement.y} 0)) (scale (xyz 1 1 1)) (rotate (xyz 0 0 ${placement.angle})))`));
   const value=sx.children(tree,'property').find(p=>sx.value(p)==='Value');if(value)value[2]=sx.str(part.name);

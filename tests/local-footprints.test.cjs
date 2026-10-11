@@ -1,5 +1,29 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {key,matchFootprint,modelPlacement,useKiCadFootprint}=require('../src/local-footprints.cjs');
+test('KiCad model rotation reverses the geometric alignment angle, keeping XY offsets',()=>{
+ const source=[['PAD',null,null,null,1,'1',-1/0.0254,0],['PAD',null,null,null,1,'2',1/0.0254,0]];
+ for(const angle of [90,-90,45,180]){
+  const radians=angle*Math.PI/180,c=Math.cos(radians),s=Math.sin(radians);
+  const text=`(footprint "Native" (pad "1" smd rect (at ${5-c} ${-(8-s)}) (size 1 1)) (pad "2" smd rect (at ${5+c} ${-(8+s)}) (size 1 1)))`;
+  const result=useKiCadFootprint(text,{name:'Probe'},'Probe','model.step',source);
+  assert.ok(Math.abs(result.placement.angle+angle)<1e-8);assert.ok(Math.abs(result.placement.x-5)<1e-8);assert.ok(Math.abs(result.placement.y-8)<1e-8);
+ }
+});
+test('KiCad native STEP puts an asymmetric model at the rotated target location',{skip:!process.env.HUB_KICAD_CLI||!process.env.HUB_FREECAD_PYTHON,timeout:60000},async t=>{
+ const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{execFileSync}=require('node:child_process');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'hub-rotation-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const python=process.env.HUB_FREECAD_PYTHON,cli=process.env.HUB_KICAD_CLI,model=path.join(root,'model.step');
+ const run=(exe,args)=>execFileSync(exe,args,{cwd:root,windowsHide:true,encoding:'utf8'});
+ run(python,['-c',`import FreeCAD as A,Part\nd=A.newDocument('Model');o=d.addObject('Part::Feature','Asymmetric');o.Shape=Part.makeBox(1,1,1,A.Vector(2,0,0));d.recompute();Part.export([o],${JSON.stringify(model)});A.closeDocument(d.Name)`]);
+ const text='(footprint "Native" (layer "F.Cu") (pad "1" smd rect (at 0 1) (size 1 1) (layers "F.Cu" "F.Paste" "F.Mask")) (pad "2" smd rect (at 0 -1) (size 1 1) (layers "F.Cu" "F.Paste" "F.Mask")))';
+ const source=[['PAD',null,null,null,1,'1',-1/0.0254,0],['PAD',null,null,null,1,'2',1/0.0254,0]];
+ const library=path.join(root,'Test.pretty');await fs.mkdir(library);await fs.writeFile(path.join(library,'Probe.kicad_mod'),useKiCadFootprint(text,{name:'Probe'},'Probe',model,source).text);
+ run(path.join(path.dirname(cli),'python.exe'),[path.join(__dirname,'kicad-portable.py'),path.join(root,'board'),library,'Probe']);
+ const step=path.join(root,'output.step');run(cli,['pcb','export','step','--output',step,path.join(root,'board','test.kicad_pcb')]);
+ const output=run(python,['-c',`import FreeCAD as A,Import,json\nd=A.newDocument('Read');Import.insert(${JSON.stringify(step)},d.Name)\nfor o in d.Objects:\n if o.TypeId=='Part::Feature' and abs(o.Shape.Volume-1)<1e-6:\n  s=o.Shape.copy();s.Placement=o.getGlobalPlacement().multiply(o.Placement.inverse()).multiply(s.Placement);print('CENTER '+json.dumps(list(s.CenterOfMass)))`]);
+ const centers=output.split(/\r?\n/).filter(l=>l.startsWith('CENTER ')).map(l=>JSON.parse(l.slice(7)));assert.equal(centers.length,1);
+ assert.ok(Math.abs(centers[0][0]+0.5)<1e-6);assert.ok(Math.abs(centers[0][1]-2.5)<1e-6);
+});
 test('simple aliases match SOP/SOIC and capacitor names without choosing ambiguous variants',()=>{
   assert.equal(key('sop-8'),key('SOIC_8'));
   assert.equal(matchFootprint('C0603',[{name:'smc0603',file:'cap.dra'}]).file,'cap.dra');
