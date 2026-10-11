@@ -63,6 +63,8 @@ function render(s) {
     const actions = document.createElement('div'); actions.className = 'row-actions';
     const link = text('button', '商品页'); link.disabled = !item.url; link.addEventListener('click', () => call('product', item.id));
     const remove = text('button', '移除'); remove.disabled = s.processing || !!s.bridge.active?.ids.includes(item.id); remove.addEventListener('click', () => call('remove', item.id));
+    const outcome=s.exportItemResults?.[s.exportTarget || 'kicad']?.[item.id];
+    if(outcome){const status=text('div',outcome.label+'：'+outcome.message);status.className='item-result';status.dataset.status=outcome.status;status.title=outcome.message;details.append(status);if(outcome.status!=='converted'){const retry=text('button','重试');retry.disabled=s.processing || s.converting || !!s.bridge.active;retry.addEventListener('click',()=>startExport([item.id]));actions.append(retry);}}
     actions.append(link, remove); row.append(info, specs, actions); $('queue').append(row);
   }
   $('export-target').value=s.exportTarget || 'kicad';$('export-target').disabled=s.edaLocked || s.processing || s.converting;
@@ -90,12 +92,13 @@ for(const [index,tab] of settingsTabs.entries()) {
 }
 for (const id of ['back', 'forward', 'refresh', 'pair', 'pair-manual', 'installer', 'open-login','output-folder','export-log']) $(id).addEventListener('click', () => call(id));
 $('preflight-close').addEventListener('click',()=>$('preflight-dialog').close());
-$('export').addEventListener('click',async()=>{
-  if(preflightBusy)return;const target=$('export-target').value;preflightBusy=true;render(state);$('export').textContent='正在检查…';
-  try{const result=await window.hub.call('export-check',target);if(result?.ok){await call('export',target);return;}
+async function startExport(ids){
+  if(preflightBusy)return;const target=$('export-target').value;const request=ids?{target,ids}:target;preflightBusy=true;render(state);$('export').textContent='正在检查…';
+  try{const result=await window.hub.call('export-check',request);if(result?.ok){await call('export',request);return;}
     $('preflight-checks').replaceChildren();for(const check of result?.checks || [{label:'检查失败',message:result?.message || '请重试'}]){const row=document.createElement('div');row.className='preflight-row';row.dataset.ok=String(!!check.ok);row.append(text('strong',(check.ok?'✓ ':'! ')+check.label),text('p',check.message));if(!check.ok && check.group && check.group!=='queue'){const button=text('button',check.group==='eda'?'前往立创 EDA':'打开设置');button.addEventListener('click',async()=>{$('preflight-dialog').close();await call('page',check.group==='eda'?'eda':'settings');if(check.group!=='eda')selectSettingsGroup(check.group);});row.append(button);}$('preflight-checks').append(row);}$('preflight-dialog').showModal();
   }catch(e){notice(e.message);}finally{preflightBusy=false;render(state);}
-});
+}
+$('export').addEventListener('click',()=>startExport());
 $('footprint-source').addEventListener('change',()=>call('footprint-source',$('footprint-source').value));
 $('export-target').addEventListener('change',()=>call('export-target',$('export-target').value));
 for (const key of settingKeys) $('setting-'+key).addEventListener('input', () => { markSettingsDirty($('setting-'+key).closest('[data-settings-panel]').dataset.settingsPanel); $('settings-hint').textContent = '有未保存的修改，保存后生效。'; });

@@ -5,6 +5,7 @@ const { attachDiscovery } = require('./discovery-session.cjs');
 const {createJob,cleanupJob,runJob}=require('./export-pipeline.cjs');
 const {ExportLog}=require('./export-log.cjs');
 const {preflight}=require('./preflight.cjs');
+const {itemResults,exportSelection}=require('./export-results.cjs');
 let exportJournal;
 const { parseDetails } = require('./product-details.cjs');
 const { paths, saveSettings } = require('./settings.cjs');
@@ -98,6 +99,7 @@ async function finishJob(job, error, result) {
   job.finishing=true;clearTimeout(job.timer);
   if(!result && job.reused?.length)result={results:job.reused,successIds:job.reused.map(r=>r.id),converted:job.reused.length};
   if(error)log(error.message);
+  store.state.exportItemResults={...store.state.exportItemResults,[job.target]:{...store.state.exportItemResults?.[job.target],...itemResults(job,result,error)}};await store.persist();
   await fs.writeFile(path.join(job.output,'last_export_report.json'),JSON.stringify({target:job.target,requestedIds:job.ids,successIds:result?.successIds || [],error:error?.message,stoppedReason:job.message?.stoppedReason,logs:logs.slice(-30)},null,2)).catch(e=>log('诊断报告保存失败：'+e.message));
   if(result?.successIds.length)await store.removeMany(result.successIds).catch(e=>log('清单更新失败：'+e.message));
   exportProgress={...exportProgress,stage:'清理临时文件',completed:result?.converted || 0};publish();
@@ -239,11 +241,11 @@ app.whenReady().then(async () => {
         case 'export-check': {
           if(startingExport || exportJob || processing || converting)throw new Error('已有任务运行中。');
           const loggedIn=bridge.status().connected?await bridge.checkLogin():null;
-          return preflight(value || store.state.exportTarget || 'kicad',store.state.queue.map(x=>x.id),paths(store),{connected:bridge.status().connected,loggedIn});
+          const {target,ids}=exportSelection(value,store.state);return preflight(target,ids,paths(store),{connected:bridge.status().connected,loggedIn});
         }
         case 'export': {
           if(startingExport || bridge.active || exportJob || processing || converting || settingsBusy)throw new Error('已有任务运行中。');
-          const ids=store.state.queue.map(x=>x.id),target=value || store.state.exportTarget || 'kicad';
+          const {ids,target}=exportSelection(value,store.state);
           exportJournal=new ExportLog(target,ids,paths(store));
           startingExport=true;processing=true;publish();
           try {
