@@ -62,11 +62,12 @@ const PLUGIN_NAME = 'lcsc-cadence-downloader_v0.5.6.eext';
 function setLogin(value) { if (edaLogin === value) return; edaLogin = value; if (value === 'signed-out' && !loginPrompted) { loginPrompted = true; current = 'eda'; layout(); log('请先登录立创 EDA，登录后才能连接和导出。'); } publish(); }
 const metadataSmoke = process.argv.includes('--metadata-smoke');
 const journeySmoke = process.argv.includes('--journey-smoke');
+const batchSmoke=process.argv.includes('--batch-smoke');
 const kicadSmoke = process.argv.includes('--kicad-smoke');
 const cadenceSmoke = process.argv.includes('--cadence-smoke');
 const altiumSmoke=process.argv.includes('--altium-smoke');
 const setupSmoke=process.argv.includes('--setup-smoke');
-const smoke = process.argv.includes('--smoke') || metadataSmoke || journeySmoke || kicadSmoke || cadenceSmoke || altiumSmoke || setupSmoke;
+const smoke = process.argv.includes('--smoke') || metadataSmoke || journeySmoke || kicadSmoke || cadenceSmoke || altiumSmoke || setupSmoke || batchSmoke;
 // Keep hidden startup checks separate from an already running user's browser session.
 if (smoke) app.setPath('userData', path.join(app.getPath('temp'), 'eda-component-hub-smoke-' + randomUUID()));
 function log(message) { exportJournal?.add(message); logs.push({ time: new Date().toLocaleTimeString('zh-CN'), message: String(message).slice(0, 4000) }); logs = logs.slice(-100); publish(); }
@@ -100,18 +101,19 @@ async function finishJob(job, error, result) {
   if(exportJob!==job || job.finishing)return;
   job.finishing=true;clearTimeout(job.timer);
   if(!result)result=summary(job);
-  if(job.runtimeResults?.length)job.message={...job.message,results:[...job.runtimeResults,...(job.message?.results || [])]};
+  if(job.runtimeResults?.length)job.message={...job.message,results:[...new Map([...job.runtimeResults,...(job.message?.results || [])].map(r=>[r.partId,r])).values()]};
   if(error)log(error.message);
-  store.state.exportItemResults={...store.state.exportItemResults,[job.target]:{...store.state.exportItemResults?.[job.target],...itemResults(job,result,error)}};await store.persist();
-  await fs.writeFile(path.join(job.output,'last_export_report.json'),JSON.stringify({target:job.target,requestedIds:job.ids,successIds:result?.successIds || [],error:error?.message,stoppedReason:job.stopRequested?'用户中止':job.message?.stoppedReason,logs:logs.slice(-30)},null,2)).catch(e=>log('诊断报告保存失败：'+e.message));
+  store.state.exportItemResults={...store.state.exportItemResults,[job.target]:{...store.state.exportItemResults?.[job.target],...itemResults(job,result,error)}};await store.persist().catch(e=>log('逐项结果保存失败：'+e.message));
+  await fs.writeFile(path.join(job.output,'last_export_report.json'),JSON.stringify({target:job.target,requestedIds:job.ids,successIds:result?.successIds || [],error:error?.message,stoppedReason:job.stopRequested?(job.stopReason || '用户中止'):job.message?.stoppedReason,logs:logs.slice(-30)},null,2)).catch(e=>log('诊断报告保存失败：'+e.message));
+  store.state.lastExportSummary={target:job.target,finishedAt:new Date().toISOString(),items:job.ids.map(id=>({id,name:store.state.queue.find(x=>x.id===id)?.name || id,...store.state.exportItemResults[job.target][id]}))};await store.persist().catch(e=>log('结果摘要保存失败：'+e.message));
   if(result?.successIds.length)await store.removeMany(result.successIds).catch(e=>log('清单更新失败：'+e.message));
   exportProgress={...exportProgress,stage:'清理临时文件',percent:100,completed:result?.converted || 0};publish();
   let cleanupMessage='';
   try {await cleanupJob(job);}catch(e){cleanupMessage='临时文件清理失败：'+e.message;log(cleanupMessage);}
   const logPath=await saveExportLog(error,result,job.message);
-  delete store.state.activeExport;await store.persist();
+  delete store.state.activeExport;await store.persist().catch(e=>log('恢复记录更新失败：'+e.message));
   exportJob=undefined;processing=false;converting=false;conversionProgress='';
-  showExportResult({type:'pipeline-result',logPath,target:job.target,converted:result?.converted || 0,failed:job.ids.length-(result?.converted || 0),folder:job.output,stoppedReason:job.stopRequested?'用户中止':job.message?.stoppedReason,message:[result?.results?.some(r=>r.reused)?`已存在并复用 ${result.results.filter(r=>r.reused).length} 个元件。`:null,job.settings[job.target+'FootprintSource']==='eda' && result?.converted?`封装来源：EDA 本地库 ${result.results.filter(r=>r.status==='converted' && r.footprintSource==='eda').length} 个，立创 ${result.results.filter(r=>r.status==='converted' && r.footprintSource!=='eda').length} 个。`:null,error?.message,cleanupMessage,job.message?.pcbCleanup?.status==='delete_failed'?'临时 PCB 删除失败：'+job.message.pcbCleanup.message:''].filter(Boolean).join('\n')});
+  showExportResult({type:'pipeline-result',logPath,target:job.target,converted:result?.converted || 0,failed:job.ids.length-(result?.converted || 0),folder:job.output,stoppedReason:job.stopRequested?(job.stopReason || '用户中止'):job.message?.stoppedReason,message:[result?.results?.some(r=>r.reused)?`已存在并复用 ${result.results.filter(r=>r.reused).length} 个元件。`:null,job.settings[job.target+'FootprintSource']==='eda' && result?.converted?`封装来源：EDA 本地库 ${result.results.filter(r=>r.status==='converted' && r.footprintSource==='eda').length} 个，立创 ${result.results.filter(r=>r.status==='converted' && r.footprintSource!=='eda').length} 个。`:null,error?.message,cleanupMessage,job.message?.pcbCleanup?.status==='delete_failed'?'临时 PCB 删除失败：'+job.message.pcbCleanup.message:''].filter(Boolean).join('\n')});
 }
 async function processJobIfReady(job) {
   if(exportJob!==job || job.running || job.finishing || !job.message || !job.file)return;
@@ -122,12 +124,12 @@ async function processJobIfReady(job) {
     const result=await runJob(batchJob,job.file,(stage,message,p)=>{
       converting=stage.startsWith('转换');conversionProgress=message || stage;
       const percent=batchProgress(job,converting?'convert':'extract',p?.completed || 0,p?.total || job.batchIds?.length);job.percent=Math.max(job.percent || 0,percent);
-      exportProgress={total:job.ids.length,completed:p?.completed ?? exportProgress?.completed ?? 0,currentId:p?.currentId || exportProgress?.currentId || '',percent:job.percent,stage:`第 ${job.batchIndex+1}/${job.batches.length} 批 · `+(message?stage+'：'+String(message).slice(0,180):stage)};
+      exportProgress={total:job.ids.length,completed:job.processedCount+(p?.completed || 0),phaseCompleted:p?.completed ?? exportProgress?.phaseCompleted ?? 0,phaseTotal:p?.total ?? exportProgress?.phaseTotal ?? job.batchIds.length,currentId:p?.currentId || exportProgress?.currentId || '',percent:job.percent,stage:`第 ${job.batchIndex+1}/${job.batches.length} 批 · `+(message?stage+'：'+String(message).slice(0,180):stage)};
       if(message || !p)log(message || stage);else publish();
     });
     acceptBatch(job,result);
     store.state.exportItemResults={...store.state.exportItemResults,[job.target]:{...store.state.exportItemResults?.[job.target],...itemResults(batchJob,result)}};await store.persist();
-    if(job.message?.stoppedReason)job.stopRequested=true;
+    if(job.message?.stoppedReason || job.message?.pcbCleanup?.status==='delete_failed'){job.stopRequested=true;job.stopReason=job.message.stoppedReason || '临时 PCB 清理失败，停止后续批次。';}
     if(nextBatch(job)){job.requestId=bridge.send(job.batchIds).requestId;converting=false;exportProgress={total:job.ids.length,completed:job.processedCount,currentId:'',percent:batchProgress(job,'download'),stage:`第 ${job.batchIndex+1}/${job.batches.length} 批 · 准备导出`};publish();return;}
     await finishJob(job,null,summary(job));
   }catch(e){await finishJob(job,e);}
@@ -166,13 +168,13 @@ app.whenReady().then(async () => {
     if (m.type === 'progress' && m.progress && bridge.active) {
       const total = bridge.active.ids.length, p = m.progress;
       exportJournal?.add(`立创 EDA 阶段：${p.stage || ''}；器件 ${p.currentId || ''}；${p.completed}/${total}`);
-      if (Number.isInteger(p.completed) && p.completed >= 0 && p.completed <= total && typeof p.stage === 'string') exportProgress = {total:exportJob?.ids.length || total, completed:p.completed+(exportJob?.reused.length || 0)+(exportJob?.processedCount || 0),currentId:bridge.active.ids.includes(p.currentId) ? p.currentId : '',stage:p.stage.slice(0,120),percent:exportJob?batchProgress(exportJob,'download',p.completed,total):35*p.completed/Math.max(total,1)};
+      if (Number.isInteger(p.completed) && p.completed >= 0 && p.completed <= total && typeof p.stage === 'string') exportProgress = {total:exportJob?.ids.length || total, completed:p.completed+(exportJob?.reused.length || 0)+(exportJob?.processedCount || 0),phaseCompleted:p.completed,phaseTotal:total,currentId:bridge.active.ids.includes(p.currentId) ? p.currentId : '',stage:p.stage.slice(0,120),percent:exportJob?batchProgress(exportJob,'download',p.completed,total):35*p.completed/Math.max(total,1)};
     }
     if (['hello','auth'].includes(m.type) && typeof m.loggedIn === 'boolean') setLogin(m.loggedIn ? 'signed-in' : 'signed-out');
     if (['exported','failed'].includes(m.type) && exportJob?.requestId===m.requestId) {
       const job=exportJob;
       if(m.type==='failed'){job.message=m;job.download?.cancel();void finishJob(job,new Error(m.message || '立创 EDA 导出失败。'));}
-      else {job.message=m;exportProgress={total:job.ids.length,completed:0,currentId:'',stage:'接收下载文件'};void processJobIfReady(job);job.timer=setTimeout(()=>{if(exportJob===job && !job.running){job.download?.cancel();void finishJob(job,new Error('未收到完整下载包，请重试。'));}},120000);}
+      else {job.message=m;job.percent=Math.max(job.percent || 0,batchProgress(job,'download',1,1));exportProgress={...exportProgress,total:job.ids.length,percent:job.percent,stage:'接收下载文件'};void processJobIfReady(job);job.timer=setTimeout(()=>{if(exportJob===job && !job.running){job.download?.cancel();void finishJob(job,new Error('未收到完整下载包，请重试。'));}},120000);}
     }
     log(m.message || (m.type === 'exported' ? '立创 EDA 导出完成，等待下载处理' : JSON.stringify(m)));
   });
@@ -351,6 +353,22 @@ app.whenReady().then(async () => {
     const fresh=await new Store(store.root).init();if(!fresh.state.setupCompleted || fresh.state.exportTarget!=='altium' || fresh.state.altiumLibraryName!=='FirstRun')throw new Error('Setup did not persist');
     console.log('SETUP_SMOKE_OK first launch, hidden browser views, detection, real tool validation, scoped settings save, persisted completion');app.quit();return;
   }
+  if(batchSmoke){
+    const waitFor=async check=>{const deadline=Date.now()+120000;while(!check()){if(Date.now()>deadline)throw new Error('Batch smoke timed out');await new Promise(r=>setTimeout(r,30));}};
+    const JSZip=require('jszip'),{WebSocket}=require('ws');store.state.kicadDir=path.join(store.root,'batch-library');
+    const ids=['C5137636',...Array.from({length:49},(_,i)=>'C'+(90000000+i)),'C658109'];for(const id of ids)await store.add({id});
+    const secondStep=path.join(store.root,'batch-second.step');await new Promise((resolve,reject)=>{const child=require('node:child_process').spawn(store.state.freecadPython,['-c',`import FreeCAD as A, Part, Import, sys; d=A.newDocument('BatchProbe'); b=d.addObject('PartDesign::Feature','Board'); b.Label='Board~batch'; b.Shape=Part.makeBox(40,40,1.6); m=d.addObject('PartDesign::Feature','Component'); m.Shape=Part.read(sys.argv[1]); m.Placement.Base.z=1.6; Import.export([b,m],sys.argv[2])`,path.join(ROOT,'tests/fixtures/kicad/C658109/C658109_mount_z0.step'),secondStep],{windowsHide:true});child.on('error',reject);child.on('close',code=>code===0?resolve():reject(new Error('Batch STEP fixture failed')));});
+    let zipBytes,fileName,requests=[];await eda.webContents.session.protocol.handle('https',()=>new Response(zipBytes,{headers:{'Content-Type':'application/zip','Content-Disposition':'attachment; filename="'+fileName+'"'}}));
+    const client=new WebSocket(bridge.uri);await new Promise(r=>client.once('open',r));
+    client.on('message',async bytes=>{const m=JSON.parse(bytes);if(m.type==='check-auth')client.send(JSON.stringify({type:'auth',probeId:m.probeId,loggedIn:true}));if(m.type!=='export')return;try{
+      requests.push(m.ids);const zip=new JSZip();zip.file('batch_manifest.json',JSON.stringify({schema:'lcsc-cadence-batch/v1',requestedIds:m.ids}));
+      for(const id of m.ids.filter(id=>['C5137636','C658109'].includes(id)))for(const name of ['manifest.json','device.elibz','footprint.elibz','pcb_with_component.step']){let bytes=await fs.readFile(id==='C658109' && name==='pcb_with_component.step'?secondStep:path.join(ROOT,'tests/fixtures/kicad',id,name));if(id==='C658109' && name==='manifest.json'){const manifest=JSON.parse(bytes);manifest.placement.footprintXMm=0;manifest.placement.footprintYMm=0;bytes=Buffer.from(JSON.stringify(manifest));}zip.file(id+'/'+name,bytes);}
+      zipBytes=await zip.generateAsync({type:'nodebuffer'});fileName='LCSC_batch_'+requests.length+'.zip';client.send(JSON.stringify({type:'exported',requestId:m.requestId,fileName,results:m.ids.map(partId=>({partId,status:['C5137636','C658109'].includes(partId)?'complete':'failed',message:'simulated missing component'}))}));setTimeout(()=>eda.webContents.downloadURL('https://pro.lceda.cn/batch.zip'),50);
+    }catch(e){console.error(e);app.exit(1);}});
+    client.send(JSON.stringify({type:'hello',loggedIn:true}));await waitFor(()=>edaLogin==='signed-in');const started=await win.webContents.executeJavaScript('window.hub.call("export","kicad")');if(!started.ok)throw new Error(started.message);await waitFor(()=>resultDialogOpen);
+    if(requests.map(x=>x.length).join(',')!=='50,1' || store.state.queue.length!==49 || store.state.activeExport || !exportResult.detail.includes('成功 2，未完成 49'))throw new Error('Batch integration failed '+JSON.stringify({sizes:requests.map(x=>x.length),queue:store.state.queue.length,result:exportResult}));
+    if(store.state.lastExportSummary.items.length!==51 || store.state.exportItemResults.kicad.C658109.status!=='converted' || !store.state.exportItemResults.kicad.C658109.warnings.some(w=>w.includes('no face colors')))throw new Error('Missing batch item results');client.close();console.log('BATCH_SMOKE_OK 50+1 real conversions, failures retained, results aggregated and journal cleared');app.quit();return;
+  }
   if (journeySmoke || kicadSmoke || cadenceSmoke || altiumSmoke) {
     dialog.showMessageBox=()=>{throw new Error('Export must use the custom dialog');};
     const {WebSocket}=require('ws'),JSZip=require('jszip');
@@ -391,6 +409,7 @@ app.whenReady().then(async () => {
       eda.webContents.downloadURL('https://pro.lceda.cn/batch.zip');
     }
     await waitFor(()=>resultDialogOpen);
+    if(journeySmoke){if(edaLocked || processing || converting || exportJob || store.state.queue.length!==2 || !exportResult.detail.includes('成功 0，未完成 2') || await fs.stat(temp).catch(()=>false))throw new Error('Canceled task must retain unconverted queue and clean temporary inputs');console.log('JOURNEY_SMOKE_OK safe stop in EasyEDA phase, custom result, unchanged queue, cleaned temporary inputs');client.close();app.quit();return;}
     if(edaLocked || processing || converting || exportJob || current!=='queue' || store.state.queue.length!==1 || store.state.queue[0].id!=='C123')throw new Error('Pipeline completion/queue failed');
     if(await fs.stat(temp).catch(()=>false))throw new Error('Temporary job files survived completion');
     if(process.argv.includes('--local-footprints')){const report=JSON.parse(await fs.readFile(path.join(paths(store)[target+'Dir'],'conversion_report.json'),'utf8'));if(report.results[0].footprintSource!=='eda')throw new Error('Local footprint was not used: '+JSON.stringify(report));}

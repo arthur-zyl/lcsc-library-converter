@@ -2,7 +2,7 @@ let currentProgress;
 const stopButton = document.getElementById('stop-export');
 window.exportProgress.onState(value => {
   currentProgress = value;
-  document.getElementById('progress-count').textContent = `已处理 ${value.completed} / ${value.total}`;
+  document.getElementById('progress-count').textContent = value.phaseTotal?`本阶段 ${value.phaseCompleted || 0} / ${value.phaseTotal} · 清单共 ${value.total} 个`:`已处理 ${value.completed} / ${value.total}`;
   document.getElementById('progress-part').textContent = value.currentId || '批量任务';
   document.getElementById('progress-stage').textContent = value.stage;
   const bar = document.getElementById('export-progress');

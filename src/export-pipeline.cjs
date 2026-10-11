@@ -47,7 +47,11 @@ async function runJob(job, zip, progress, deps={}) {
   if (resources.some(item=>!job.ids.includes(item.id))) throw new Error('模型提取结果与导出清单不一致。');
   progress('转换 '+({kicad:'KiCad',cadence:'Cadence',altium:'Altium Designer'}[job.target])+' 库');
   const convert = deps.convert || ({kicad:convertLibrary,cadence:convertCadenceLibrary,altium:convertAltiumLibrary}[job.target]);
-  const result = await convert(resources,job.settings,message=>progress('转换元件库',message),{...control,onProgress:p=>progress('转换元件库',undefined,p)});
+  const result = !resources.length?{results:[]}:await convert(resources,job.settings,message=>progress('转换元件库',message),{...control,onProgress:p=>progress('转换元件库',undefined,p)});
+  for(const item of result.results){const warnings=resources.find(r=>r.id===item.id)?.warnings;if(warnings?.length)item.warnings=[...(item.warnings || []),...warnings];}
+  const known=new Set(result.results.map(r=>r.id));
+  const extraction=new Map();try{for(const run of await fs.readdir(path.join(job.root,'resources'))){const entries=JSON.parse(await fs.readFile(path.join(job.root,'resources',run,'processing_summary.json'),'utf8').catch(()=>'[]'));for(const entry of entries)extraction.set(entry.partId,entry);}}catch{}
+  for(const id of job.downloadIds || job.ids)if(!known.has(id)){const entry=extraction.get(id),runtime=job.message?.results?.find(r=>r.partId===id);result.results.push({id,status:job.stopRequested || entry?.status==='not_started'?'not_started':'failed',message:entry?.message || runtime?.message || (job.stopRequested?'任务已中止，尚未转换。':entry?.status==='skipped_no_step'?'下载包未包含可提取的 STEP；请检查模型绑定和导出设置。':'未获得完整元件资源，请查看提取日志。')});}
   result.results=[...(job.reused || []),...result.results];
   const successIds = [...new Set(result.results.filter(item=>item.status==='converted').map(item=>item.id))];
   if (successIds.some(id=>!job.ids.includes(id))) throw new Error('库转换结果与导出清单不一致。');

@@ -9,3 +9,7 @@
 .item-result{font-size:12px;line-height:1.5;margin-top:5px;color:#8c3b30;max-height:3em;overflow:hidden}.item-result[data-status="converted"]{color:#257454}
 
 .recovery-banner{padding:12px 16px;background:#fff3d8;border:1px solid #dcc78d;border-radius:6px;margin-bottom:12px;color:#755a20;font-size:13px}
+
+#last-results{margin:14px 0;border:1px solid #c6d3db;border-radius:6px;padding:10px 14px;font-size:13px}#last-results summary{cursor:pointer;color:#31576b}.last-result{display:grid;grid-template-columns:minmax(180px,1fr) 60px minmax(0,2fr);gap:10px;border-top:1px solid #d6e0e6;padding:8px 0}.last-result:first-child{margin-top:10px}.last-result small{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#6b7b84}
+
+.row-actions{flex-wrap:wrap;align-content:start}

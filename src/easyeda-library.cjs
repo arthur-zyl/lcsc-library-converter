@@ -10,7 +10,7 @@ async function archive(file) {
 function rows(text,type) {
   const parsed=text.split(/\r?\n/).filter(x=>x.trim()).map((line,index)=>{
     let row;try{row=JSON.parse(line);}catch{throw new Error(`立创库第 ${index+1} 行不是有效 JSON`);}
-    if(!Array.isArray(row)||typeof row[0]!=='string')throw new Error('立创库包含无效图元');return row;
+    if(!Array.isArray(row)||typeof row[0]!=='string')throw new Error('立创库包含无效图元；当前转换器支持专业版 V2 数组源码格式。');return row;
   });
   if(!parsed.some(x=>x[0]==='DOCTYPE' && x[1]===type))throw new Error(`缺少 ${type} 格式声明`);
   return parsed;

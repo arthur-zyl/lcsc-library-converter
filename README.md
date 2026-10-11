@@ -145,3 +145,17 @@ CUSTOM_RAIL
 使用方式：在 AD 的 Libraries / File-based Libraries 中安装生成的 SchLib 与 PcbLib，或直接打开库文件。此功能提供基础库，不生成 PCB 工程或集成库 IntLib。新文件提交前回读二进制，验证引脚类型/单元/热点、焊盘尺寸/钻孔/镀铜、中文属性、封装关联和内嵌 STEP 内容；不支持的源图元明确报错，不输出删减后的器件。原理图图形坐标按 1 mil 取整；PCB 曲线按最大 0.002 mm 偏差折线近似。
 
 实现使用项目已有 [altium-monkey](https://github.com/wavenumber-eng/altium_monkey) 2026.6.9（二进制读写，AGPL-3.0-or-later），第三方依赖及许可保存在 tools/ad_vendor。参考其 [PcbLib API 文档](https://github.com/wavenumber-eng/altium_monkey/blob/main/docs/pcblib.md)；代码按工程内固定版本接口适配。`HUB_FREECAD_PYTHON` 环境变量启用 `tests/altium.test.cjs` 的真实二进制回归；`electron . --altium-smoke` 在隔离隐藏实例验证完整导出流程。
+
+
+### 导出可靠性
+
+- 设置按「通用 / KiCad / AD / Cadence」分别保存和校验，其他分组的草稿会保留。
+- 点击导出先检查目标库写入权限、已有库、FreeCAD、目标转换工具、立创 EDA 登录和插件连接。完整已有库可以离线复用。
+- 清单显示每个失败项的原因，可单独重试；上次导出结果可展开查看成功项和提示。
+- 进度覆盖立创 EDA 下载、FreeCAD 提取和库转换；中止会在当前元件完成后生效，保留已经完成的库。收尾提交完成后才解除锁定。
+- 异常退出后恢复清单并标记中断；再次导出时检查已有库，跳过完整元件。新版转换锁会检查所属进程；未知旧版锁不会自动删除。
+- 大清单自动按每批最多 50 个顺序下载、提取和转换，统一汇总结果；中止后不再开始下一批。
+- 转换支持圆角/旋转符号矩形和自适应椭圆近似（源几何误差不超过 0.002 mm，Capture 仍受 10 mil 网格限制）。按照[立创专业版官方文件格式](https://prodocs.lceda.cn/cn/format/index/)处理 V2 数组源码，尚未支持的几何会明确报错。
+- 有颜色的 STEP 保留面颜色；源 STEP 没有颜色时采用中性灰并写入诊断提示。中间下载和模型文件在正常结束或异常恢复后清理。
+
+回归测试：`npm test`；原生转换测试可设置 `HUB_FREECAD_PYTHON`、`HUB_KICAD_CLI`、`HUB_CADENCE_ROOT` 后运行。`electron . --batch-smoke` 使用模拟立创 EDA 通信和真实 FreeCAD / KiCad，检查 50＋1 分批、失败保留、结果汇总及临时文件清理；不会操作用户已打开的网页。

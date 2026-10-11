@@ -1,3 +1,4 @@
+const {rectanglePoints,ellipsePoints}=require('./symbol-geometry.cjs');
 const quote=value=>JSON.stringify(String(value??''));
 const number=value=>{const n=Number(value);if(!Number.isFinite(n))throw new Error('符号包含无效坐标');return Number(n.toFixed(6));};
 const mm=value=>number(number(value)*0.254);
@@ -46,7 +47,7 @@ function convertSymbol(part,entry,library,footprintEntry=entry) {
           graphics.push(`(pin ${type} ${style} (at ${point(r[4],r[5])} ${angle}) (length ${mm(r[6])}) (name ${quote(pinName)} (effects (font (size 1.016 1.016)))) (number ${quote(pinNumber)} (effects (font (size 1.016 1.016)))))`);break;
         }
         case 'RECT': {
-          if(r[6]||r[7]||r[8])throw new Error('暂不支持带圆角或旋转的符号矩形');
+          if(r[6]||r[7]||r[8]){graphics.push(poly(rectanglePoints(r),r[9],true));if(r[6] && r[7])warnings.push('符号圆角使用误差不超过 0.002 mm 的折线近似；目标软件可能按自身网格取整。');break;}
           graphics.push(`(rectangle (start ${point(r[2],r[3])}) (end ${point(r[4],r[5])}) ${stroke(r[9])} ${fill(r[9])})`);break;
         }
         case 'CIRCLE':graphics.push(`(circle (center ${point(r[2],r[3])}) (radius ${mm(r[4])}) ${stroke(r[5])} ${fill(r[5])})`);break;
@@ -59,7 +60,7 @@ function convertSymbol(part,entry,library,footprintEntry=entry) {
         }
         case 'ELLIPSE': {
           if(r[4]===r[5])graphics.push(`(circle (center ${point(r[2],r[3])}) (radius ${mm(r[4])}) ${stroke(r[7])} ${fill(r[7])})`);
-          else {const pts=[],angle=number(r[6])*Math.PI/180;for(let i=0;i<=72;i++){const a=i*2*Math.PI/72,x=number(r[4])*Math.cos(a),y=number(r[5])*Math.sin(a);pts.push(number(r[2])+x*Math.cos(angle)-y*Math.sin(angle),number(r[3])+x*Math.sin(angle)+y*Math.cos(angle));}graphics.push(poly(pts,r[7],true));warnings.push('非圆椭圆使用 72 段折线近似。');}break;
+          else {graphics.push(poly(ellipsePoints(r[2],r[3],r[4],r[5],r[6]),r[7],true));warnings.push('符号椭圆使用误差不超过 0.002 mm 的折线近似；目标软件可能按自身网格取整。');}break;
         }
         case 'TEXT': {
           const size=mm(activeFonts.get(r[6])?.[5]||5);

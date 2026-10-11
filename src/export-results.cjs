@@ -8,7 +8,7 @@ function itemResults(job,result,error){
   return Object.fromEntries(job.ids.map(id=>{
     const converted=result?.results?.find(r=>r.id===id),runtime=job.message?.results?.find(r=>r.partId===id);
     const success=converted?.status==='converted';
-    const status=success?'converted':job.stopRequested || runtime?.status==='not_started'?'not_started':'failed';
+    const status=success?'converted':job.stopRequested || converted?.status==='not_started' || runtime?.status==='not_started'?'not_started':'failed';
     const message=success?(converted.reused?'已有完整库，已复用。':converted.warnings?.join('；') || '原理图、封装和模型已导出。'):converted?.message || error?.message || runtime?.message || '模型提取或转换未完成，请查看导出日志。';
     return [id,{status,label:success?'成功':status==='not_started'?'未完成':'失败',message,updatedAt:new Date().toISOString(),reused:!!converted?.reused,warnings:converted?.warnings || []}];
   }));

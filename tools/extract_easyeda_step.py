@@ -28,7 +28,7 @@ def world_shape(obj):
     return s
 
 
-def colored_component(component, imported_colors):
+def colored_component(component, imported_colors, warnings=None):
     """Flatten geometry leaves and their face colors in the same order."""
     shapes, colors = [], []
     color_map = {obj.Name: list(values) for obj, values in (imported_colors or [])}
@@ -40,8 +40,10 @@ def colored_component(component, imported_colors):
         elif hasattr(obj, 'Shape') and not obj.Shape.isNull() and obj.Shape.Solids:
             shape = world_shape(obj)
             values = color_map.get(obj.Name)
-            if values is None:
-                raise RuntimeError('STEP geometry has no imported face colors: ' + obj.Label)
+            if not values:
+                values = [(0.7, 0.7, 0.7)]
+                if warnings is not None:
+                    warnings.append('Source STEP has no face colors; neutral grey assigned: ' + obj.Label)
             if len(values) == 1:
                 values = values * len(shape.Faces)
             if len(values) != len(shape.Faces):
@@ -157,11 +159,12 @@ def main():
         if len(components) != 1:
             raise RuntimeError('Expected exactly one component; multi-component PCB is unsupported')
         component = components[0]
-        shape, colors = colored_component(component, imported_colors)
+        color_warnings = []
+        shape, colors = colored_component(component, imported_colors, color_warnings)
         if not shape.isValid():
             raise RuntimeError('Source component geometry is invalid')
         gp = component.getGlobalPlacement()
-        report = {'source': str(args.source.resolve()), 'part_id': args.part_id,
+        report = {'warnings': color_warnings, 'source': str(args.source.resolve()), 'part_id': args.part_id,
                   'board_label': board.Label, 'board_bounds_mm': bounds(board_shape),
                   'board_thickness_mm': bb.ZLength,
                   'component_label': component.Label,

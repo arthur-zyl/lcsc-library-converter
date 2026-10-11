@@ -54,7 +54,10 @@ def process_entry(archive, prefix, args, root):
     (target / 'processing.log').write_text(result.stdout + '\n' + result.stderr, encoding='utf-8')
     if result.returncode:
         raise RuntimeError('FreeCAD extraction failed. See ' + str(target / 'processing.log'))
-    return {'partId': part_id, 'status': 'extracted', 'directory': str(target)}
+    report=json.loads((target / (part_id + '_report.json')).read_text(encoding='utf-8'))
+    for warning in report.get('warnings', []):
+        print(part_id + ': ' + warning, flush=True)
+    return {'partId': part_id, 'status': 'extracted', 'directory': str(target), 'warnings': report.get('warnings', [])}
 
 
 def main():
