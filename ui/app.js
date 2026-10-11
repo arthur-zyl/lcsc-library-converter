@@ -40,7 +40,7 @@ function render(s) {
   $('plugin-path').hidden = s.page !== 'eda';
   $('queue').replaceChildren();
   if(s.recovery){const banner=document.createElement('div');banner.className='recovery-banner';banner.append(text('span','上次导出异常中断，清单已恢复。重试会跳过已有完整库。'));$('queue').append(banner);}
-  if (!s.queue.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.append(text('strong', '清单里还没有元件'), text('div', '去商城选料，在商品旁点击「加入清单」。')); $('queue').append(empty); }
+  if (!s.queue.length) { const empty = document.createElement('div'); empty.className = 'empty'; empty.append(text('strong', '清单里还没有元件'), text('div', '去立创商城选料，在商品旁点击「加入清单」。')); $('queue').append(empty); }
   for (const item of s.queue) {
     const row = document.createElement('div'); row.className = 'cart-item';
     const info = document.createElement('div'); info.className = 'product-info';
