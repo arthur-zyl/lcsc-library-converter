@@ -292,7 +292,7 @@ app.whenReady().then(async () => {
           if(processing || bridge.active || converting) throw new Error('导出或处理期间不能修改路径，请等待任务完成。');
           settingsBusy=true; publish();
           try {
-            await saveSettings(store,value);
+            await saveSettings(store,value.values || value,{group:value.group});
             log('设置已保存，后续导出使用新目录。');
           } finally { settingsBusy=false; publish(); }
           return {ok:true,message:'设置已保存'};

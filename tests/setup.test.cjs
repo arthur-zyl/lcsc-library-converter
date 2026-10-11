@@ -57,3 +57,11 @@ test('selected EDA setup persists without requiring other EDA installations, and
 test('real FreeCAD and AD converter dependency preflight',{skip:!process.env.HUB_FREECAD_PYTHON},async()=>{
   const result=await checkTools({freecadPython:process.env.HUB_FREECAD_PYTHON,target:'altium'});assert.match(result.message,/通过/);
 });
+
+test('group save ignores unavailable other EDA tools and retains unrelated settings',async t=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'hub-group-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const store=await new Store(root).init();
+  store.state.cadenceRoot=path.join(root,'missing-cadence');store.state.freecadPython='missing-python';
+  await saveSettings(store,{kicadDir:path.join(root,'KiCad'),kicadFootprintLibraryName:'Parts',kicadCli:''},{group:'kicad'});
+  assert.equal(store.state.freecadPython,'missing-python');assert.equal(store.state.cadenceRoot,path.join(root,'missing-cadence'));assert.equal(store.state.kicadFootprintLibraryName,'Parts');
+  const before={...store.state};await assert.rejects(saveSettings(store,{cadenceRoot:path.join(root,'missing'),cadenceDir:path.join(root,'Cadence')},{group:'cadence'}),/缺少/);assert.deepEqual(store.state,before);
+});

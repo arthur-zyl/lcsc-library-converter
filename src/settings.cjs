@@ -11,7 +11,8 @@ function paths(store) {
     kicadCli:store.state.kicadCli || '',kicadDir:store.state.kicadDir || path.join(store.root,'kicad'),kicadFootprintLibraryName:store.state.kicadFootprintLibraryName || 'LCSC',
     cadenceRoot:store.state.cadenceRoot||'',cadenceDir:store.state.cadenceDir||path.join(store.root,'cadence'),cadenceLibraryName:store.state.cadenceLibraryName||'LCSC'};
 }
-async function saveSettings(store, input, {target}={}) {
+async function saveSettings(store, input, {target,group}={}) {
+  if(group)return saveGroup(store,input,group);
   const rules=validateRules(input?.cadencePowerRules ?? readRules(store));
   const settings = {};
   for(const provider of ['kicad','cadence','altium']) {
@@ -63,4 +64,27 @@ async function saveSettings(store, input, {target}={}) {
   } catch (error) { store.state = prior; throw error; } finally {await fs.unlink(temp).catch(()=>{});}
   return settings;
 }
-module.exports = {paths,saveSettings};
+async function saveGroup(store,input,group){
+  if(!['general','kicad','cadence','altium'].includes(group))throw new Error('未知设置分组');
+  const settings={},current=paths(store);let rules;
+  const absolute=(key,label)=>{const value=String(input?.[key]??current[key]??'').trim();if(!value || !path.isAbsolute(value))throw new Error(label+'需要完整的绝对路径。');return value;};
+  if(group==='general'){
+    settings.freecadPython=absolute('freecadPython','FreeCAD Python');if(!(await fs.stat(settings.freecadPython).catch(()=>null))?.isFile())throw new Error('找不到 FreeCAD Python，请选择 bin/python.exe。');
+  }else{
+    const key=group+'FootprintSource',folderKey=group+'FootprintDir';settings[key]=input?.[key]??current[key];if(!['easyeda','eda'].includes(settings[key]))throw new Error('封装来源无效');
+    settings[folderKey]=String(input?.[folderKey]??current[folderKey]??'').trim();if(settings[folderKey] && (!path.isAbsolute(settings[folderKey]) || !(await fs.stat(settings[folderKey]).catch(()=>null))?.isDirectory()))throw new Error('本地封装库目录无效');
+    const nameKey=group==='kicad'?'kicadFootprintLibraryName':group+'LibraryName';settings[nameKey]=libraryName(input?.[nameKey]??current[nameKey]);
+    const dirKey=group+'Dir';settings[dirKey]=absolute(dirKey,'库导出目录');
+    const probe=path.join(settings[dirKey],'.hub-write-'+randomUUID());try{await fs.mkdir(settings[dirKey],{recursive:true});await fs.writeFile(probe,'',{flag:'wx'});}catch{throw new Error('库导出目录无法写入。');}finally{await fs.unlink(probe).catch(()=>{});}
+    if(group==='kicad'){settings.kicadCli=String(input?.kicadCli??current.kicadCli??'').trim();if(settings.kicadCli && (!path.isAbsolute(settings.kicadCli) || !(await fs.stat(settings.kicadCli).catch(()=>null))?.isFile()))throw new Error('找不到 KiCad CLI。');}
+    if(group==='cadence'){
+      settings.cadenceRoot=String(input?.cadenceRoot??current.cadenceRoot??'').trim();if(settings.cadenceRoot){if(!path.isAbsolute(settings.cadenceRoot))throw new Error('Cadence 需要完整的安装路径。');for(const file of ['tclsh.exe','orDb_Dll_Tcl64.dll','allegro.exe'])if(!(await fs.stat(path.join(settings.cadenceRoot,'tools/bin',file)).catch(()=>null))?.isFile())throw new Error('Cadence 安装缺少 '+file);}
+      rules=validateRules(input?.cadencePowerRules??readRules(store));
+    }
+  }
+  const prior={...store.state},file=rulesPath(store);let old,temp;
+  try{if(rules){old=await fs.readFile(file).catch(e=>{if(e.code==='ENOENT')return null;throw e;});temp=file+'.'+randomUUID()+'.tmp';await fs.writeFile(temp,JSON.stringify(rules,null,2));await fs.rename(temp,file);}Object.assign(store.state,settings);await store.persist();}
+  catch(e){store.state=prior;if(rules && old!==undefined){if(old===null)await fs.unlink(file).catch(()=>{});else await fs.writeFile(file,old);}throw e;}finally{if(temp)await fs.unlink(temp).catch(()=>{});}
+  return settings;
+}
+module.exports = {paths,saveSettings,saveGroup};

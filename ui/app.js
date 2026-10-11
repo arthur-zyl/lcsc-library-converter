@@ -1,9 +1,13 @@
 let state, settingsDirty = false, settingsSaving = false, toolDetectionBusy=false;
+const dirtyGroups=new Set();let activeSettingsGroup="general";
+function markSettingsDirty(group){dirtyGroups.add(group);settingsDirty=true;}
 function selectSettingsGroup(group, focus=false) {
+  activeSettingsGroup=group;
   const button=document.querySelector(`[data-settings-group="${group}"]`);if(!button)return;
   document.querySelectorAll('[data-settings-group]').forEach(tab=>{const active=tab.dataset.settingsGroup===group;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;});
   document.querySelectorAll('[data-settings-panel]').forEach(panel=>{panel.hidden=panel.dataset.settingsPanel!==group;});
   if(focus)button.focus();
+  if(state)render(state);
 }
 const settingKeys = ['kicadFootprintSource','cadenceFootprintSource','kicadFootprintDir','cadenceFootprintDir','freecadPython','kicadCli','kicadDir','kicadFootprintLibraryName','cadenceRoot','cadenceDir','cadenceLibraryName','altiumDir','altiumLibraryName','altiumFootprintSource','altiumFootprintDir'];
 const $ = id => document.getElementById(id);
@@ -67,14 +71,14 @@ function render(s) {
   $('output-folder').disabled=s.edaLocked || s.processing || s.converting;
   $('settings').hidden = s.page !== 'settings';
   renderSetup(s);
-  if (!settingsDirty && s.settings) for (const key of settingKeys) $('setting-'+key).value = s.settings[key] ?? (key.endsWith('Source')?'easyeda':'');
-  if(!settingsDirty && s.settings){$('power-rules').value=s.settings.cadencePowerRules?.patterns || '';$('power-legacy-note').hidden=!s.settings.cadencePowerRules?.legacy; }
+  if (s.settings) for (const key of settingKeys) if(!dirtyGroups.has($('setting-'+key).closest('[data-settings-panel]').dataset.settingsPanel)) $('setting-'+key).value = s.settings[key] ?? (key.endsWith('Source')?'easyeda':'');
+  if(!dirtyGroups.has('cadence') && s.settings){$('power-rules').value=s.settings.cadencePowerRules?.patterns || '';$('power-legacy-note').hidden=!s.settings.cadencePowerRules?.legacy; }
   $('power-config-path').textContent='配置文件：'+(s.settings?.cadencePowerRulesPath || '');
   const settingsLocked = toolDetectionBusy || !!s.bridge.active || s.processing || s.converting || s.settingsBusy || settingsSaving;
   for (const element of $('settings-form').querySelectorAll('input,select,textarea,button')) element.disabled = settingsLocked;
-  $('settings-save').textContent = s.settingsBusy || settingsSaving ? '正在保存…' : '保存设置';
+  $('settings-save').textContent = s.settingsBusy || settingsSaving ? '正在保存…' : '保存当前设置';
   if (s.processing || s.bridge.active || s.converting) $('settings-hint').textContent = '导出或处理期间暂不能修改设置。';
-  else $('settings-hint').textContent = settingsDirty ? '有未保存的修改，保存后生效。' : '修改设置仅影响后续导出；已有元件库不会移动。';
+  else $('settings-hint').textContent = dirtyGroups.has(activeSettingsGroup) ? '当前分组有未保存的修改。' : dirtyGroups.size ? '其他分组有未保存的修改，切换后可分别保存。' : '仅保存当前分组；修改设置不移动已有库。';
   document.querySelectorAll('[data-page]').forEach(b => { b.classList.toggle('active', b.dataset.page === s.page); b.disabled = !!s.edaLocked; });
   $('connection-log').textContent = s.logs.slice(-20).map(x => x.time + '  ' + x.message).join('\n') || '暂无连接日志';
 }
@@ -88,21 +92,22 @@ for (const id of ['back', 'forward', 'refresh', 'pair', 'pair-manual', 'installe
 $('export').addEventListener('click',()=>call('export',$('export-target').value));
 $('footprint-source').addEventListener('change',()=>call('footprint-source',$('footprint-source').value));
 $('export-target').addEventListener('change',()=>call('export-target',$('export-target').value));
-for (const key of settingKeys) $('setting-'+key).addEventListener('input', () => { settingsDirty = true; $('settings-hint').textContent = '有未保存的修改，保存后生效。'; });
+for (const key of settingKeys) $('setting-'+key).addEventListener('input', () => { markSettingsDirty($('setting-'+key).closest('[data-settings-panel]').dataset.settingsPanel); $('settings-hint').textContent = '有未保存的修改，保存后生效。'; });
 document.querySelectorAll('[data-setting-pick]').forEach(button => button.addEventListener('click', async () => {
   const key = button.dataset.settingPick;
   const result = await call('settings-pick',key);
-  if (result?.path) { $('setting-'+key).value = result.path; settingsDirty = true; render(state); }
+  if (result?.path) { $('setting-'+key).value = result.path; markSettingsDirty($('setting-'+key).closest('[data-settings-panel]').dataset.settingsPanel); render(state); }
 }));
 $('settings-form').addEventListener('submit', async event => {
   event.preventDefault(); if (settingsSaving) return;
-  for(const input of $('settings-form').querySelectorAll('input'))if(!input.checkValidity()){selectSettingsGroup(input.closest('[data-settings-panel]').dataset.settingsPanel);input.reportValidity();return;}
-  const value = Object.fromEntries(settingKeys.map(key=>[key,$('setting-'+key).value]));
-  value.cadencePowerRules={format:'glob',patterns:$('power-rules').value,...(state.settings.cadencePowerRules?.legacy?{legacy:state.settings.cadencePowerRules.legacy}:{})};
+  const panel=document.querySelector('[data-settings-panel="'+activeSettingsGroup+'"]');
+  for(const input of panel.querySelectorAll('input'))if(!input.checkValidity()){selectSettingsGroup(input.closest('[data-settings-panel]').dataset.settingsPanel);input.reportValidity();return;}
+  const value = Object.fromEntries(settingKeys.filter(key=>panel.contains($('setting-'+key))).map(key=>[key,$('setting-'+key).value]));
+  if(activeSettingsGroup==='cadence')value.cadencePowerRules={format:'glob',patterns:$('power-rules').value,...(state.settings.cadencePowerRules?.legacy?{legacy:state.settings.cadencePowerRules.legacy}:{})};
   settingsSaving = true; render(state);
   try {
-    const result = await call('settings-save',value);
-    if(result?.ok) { settingsDirty=false; notice(result.message); const updated=await call('state'); if(updated) render(updated); }
+    const result = await call('settings-save',{group:activeSettingsGroup,values:value});
+    if(result?.ok) { dirtyGroups.delete(activeSettingsGroup);settingsDirty=dirtyGroups.size>0; notice(result.message); const updated=await call('state'); if(updated) render(updated); }
   } finally { settingsSaving=false; render(state); }
 });
 for (const id of ['plugin-path','plugin-path-local','plugin-path-login']) $(id).addEventListener('click', () => call('plugin-path').then(result => { if (result?.ok) notice(result.message); }));
@@ -121,18 +126,18 @@ $('url').addEventListener('keydown', e => {
 });
 window.hub.onState(render); call('state').then(s => { if (s) render(s); });
 
-$('power-rules').addEventListener('input',()=>{settingsDirty=true;$('settings-hint').textContent='有未保存的修改，保存后生效。';$('power-test-result').textContent='';});
+$('power-rules').addEventListener('input',()=>{markSettingsDirty('cadence');$('settings-hint').textContent='有未保存的修改，保存后生效。';$('power-test-result').textContent='';});
 $('power-reset').addEventListener('click',()=>{$('power-rules').value=state.settings.cadencePowerDefaults?.patterns || '';state.settings.cadencePowerRules={format:'glob',patterns:$('power-rules').value};$('power-legacy-note').hidden=true;$('power-rules').dispatchEvent(new Event('input'));});
 $('power-test').addEventListener('click',async()=>{
   try{const result=await call('power-rules-test',{rules:{format:'glob',patterns:$('power-rules').value,...(state.settings.cadencePowerRules?.legacy?{legacy:state.settings.cadencePowerRules.legacy}:{})},name:$('power-test-name').value});$('power-test-result').textContent=result?.ok?(result.matched?'名称匹配：可补充识别为 Power（原库类型仍优先）。':'名称不匹配：不自动改为 Power。'):(result?.message || '测试失败');}catch(e){$('power-test-result').textContent='规则无效：'+e.message;}
 });
 $('power-repair').addEventListener('click',async()=>{
-  if(settingsDirty){notice('请先保存设置，再更新已有原理图库。');return;}
+  if(dirtyGroups.has('cadence')){notice('请先保存设置，再更新已有原理图库。');return;}
   const result=await call('cadence-repair-symbols');if(result?.ok)notice(result.message);
 });
 
 document.querySelectorAll('[data-setting-detect]').forEach(button=>button.addEventListener('click',async()=>{
   const key=button.dataset.settingDetect;toolDetectionBusy=true;render(state);button.textContent='正在检测…';
-  try{const result=await call('settings-detect',key);if(result?.ok && result.path){$('setting-'+key).value=result.path;settingsDirty=true;render(state);notice(result.message);}}
+  try{const result=await call('settings-detect',key);if(result?.ok && result.path){$('setting-'+key).value=result.path;markSettingsDirty($('setting-'+key).closest('[data-settings-panel]').dataset.settingsPanel);render(state);notice(result.message);}}
   finally{toolDetectionBusy=false;button.textContent='自动检测';render(state);}
 }));

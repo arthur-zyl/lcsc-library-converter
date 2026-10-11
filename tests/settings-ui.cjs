@@ -8,7 +8,7 @@ app.whenReady().then(async()=>{
   const win=new BrowserWindow({show:false,width:1440,height:960,backgroundColor:'#edf2f5',webPreferences:{offscreen:true,preload:path.join(root,'src/preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
   let painted;
   win.webContents.on('paint',(_event,_dirty,image)=>{const png=image.toPNG();if(png.length)painted=png;});
-  ipcMain.handle('hub:action',(_event,action,value)=>{if(action==='settings-detect')return detectionFails?{ok:false,message:'未检测到安装'}:{ok:true,path:'E:/Detected/'+value,message:'已检测到'};if(action==='settings-save')state.settings={...state.settings,...value};if(action==='power-rules-test')return {ok:true,matched:matcher(value.rules)(value.name)};if(action==='cadence-repair-symbols'){repairs++;return {ok:true,message:'已更新'};}return action==='state' ? state : {ok:true,path:null};});
+  ipcMain.handle('hub:action',(_event,action,value)=>{if(action==='settings-detect')return detectionFails?{ok:false,message:'未检测到安装'}:{ok:true,path:'E:/Detected/'+value,message:'已检测到'};if(action==='settings-save')state.settings={...state.settings,...(value.values || value)};if(action==='power-rules-test')return {ok:true,matched:matcher(value.rules)(value.name)};if(action==='cadence-repair-symbols'){repairs++;return {ok:true,message:'已更新'};}return action==='state' ? state : {ok:true,path:null};});
   await win.loadFile(path.join(root,'ui/index.html')); await new Promise(r=>setTimeout(r,200));
   assert.ok(await win.webContents.executeJavaScript('!document.getElementById("settings").hidden && document.querySelectorAll(".settings-field").length>=11 && document.querySelector(".toolbar").hidden'));
   assert.ok(await win.webContents.executeJavaScript("!document.querySelector('[data-settings-group=advanced]') && document.getElementById('power-rules').closest('[data-settings-panel]').dataset.settingsPanel==='cadence' && document.querySelector('[data-page=eda]').textContent==='立创 EDA'"));
@@ -51,7 +51,8 @@ app.whenReady().then(async()=>{
   await win.webContents.executeJavaScript('document.getElementById("setting-kicadFootprintSource").value="eda";document.getElementById("setting-kicadFootprintSource").dispatchEvent(new Event("input"));document.getElementById("settings-tab-cadence").click()');
   assert.ok(await win.webContents.executeJavaScript('document.getElementById("setting-cadenceFootprintSource").value === "easyeda"'));
   await win.webContents.executeJavaScript('document.getElementById("settings-form").requestSubmit()');await new Promise(r=>setTimeout(r,100));
-  assert.equal(state.settings.kicadFootprintSource,'eda');assert.equal(state.settings.cadenceFootprintSource,'easyeda');
+  assert.equal(state.settings.kicadFootprintSource,'easyeda');
+  await win.webContents.executeJavaScript('document.getElementById("settings-tab-kicad").click();document.getElementById("settings-form").requestSubmit()');await new Promise(r=>setTimeout(r,80));assert.equal(state.settings.kicadFootprintSource,'eda');assert.equal(state.settings.cadenceFootprintSource,'easyeda');
   await win.webContents.executeJavaScript('document.getElementById("settings-tab-cadence").click();document.getElementById("power-test").click()');await new Promise(r=>setTimeout(r,60));
   assert.ok(await win.webContents.executeJavaScript('!document.getElementById("settings-panel-cadence").hidden && document.getElementById("power-test-result").textContent.includes("可补充识别")'));
   await win.webContents.executeJavaScript('document.getElementById("power-rules").value="CUSTOM_RAIL\\n!VCCO_DDR_502";document.getElementById("power-rules").dispatchEvent(new Event("input"));document.getElementById("power-test").click();document.getElementById("power-repair").click()');await new Promise(r=>setTimeout(r,60));
