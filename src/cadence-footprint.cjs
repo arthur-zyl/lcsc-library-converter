@@ -49,6 +49,7 @@ function footprint(part,entry,modelName) {
     if(![1,2,12].includes(r[4]))throw new Error('不支持焊盘层 '+r[4]);
     const shape=r[10];
     if(!shape)throw new Error('缺少焊盘形状');
+    if(!['RECT','ROUND','ELLIPSE','OVAL'].includes(shape[0]))throw new Error('暂不支持焊盘形状 '+shape[0]+'（引脚 '+String(r[5]??'')+'）；需要自定义焊盘转换，未替换为近似形状。');
     const width=mm(shape[1]),height=mm(shape[2]??shape[1]);if(width<=0||height<=0)throw new Error('焊盘尺寸无效');
     const kind={RECT:width===height?'SQUARE':'RECTANGLE',ROUND:'CIRCLE',ELLIPSE:'CIRCLE',OVAL:width>=height?'OBLONG_X':'OBLONG_Y'}[shape[0]];
     if(!kind)throw new Error('暂不支持焊盘形状 '+shape[0]);

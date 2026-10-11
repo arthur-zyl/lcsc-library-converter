@@ -168,3 +168,5 @@ Cadence 的 Value 另外使用保守的 ASCII 写法以兼容 Capture → Allegr
 失败或部分失败的任务将整份临时目录归档到应用数据目录 `data/failed-exports`，保留原始 ZIP、提取结果、processing.log、尺寸校验 JSON 和 failure.json；完成提示与导出日志显示归档路径，目标库目录的 last_failure_files.json 也记录此路径。异常退出恢复同样归档原始文件。成功任务及没有错误的主动中止任务继续清理，归档文件不自动删除，可排查后手动清理。
 
 STEP 重新导入后的外包尺寸绝对容差为 0.01 mm，详细记录导出前后尺寸、各项差值和最大差值；超过容差仍失败。实体有效性、实体数量、体积及颜色检查保持原样，不以尺寸容差跳过这些检查。
+
+尺寸检查使用 FreeCAD `optimalBoundingBox(False, False)` 的精确曲面外包框，避免普通 BoundBox 对裁剪曲面控制点的过度包围导致误判。C2915308 的原始 STEP 纳入回归，校验安装面、高度、实体和颜色保留。

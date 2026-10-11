@@ -15,7 +15,10 @@ from step_bounds import compare_bounds
 
 
 def bounds(shape):
-    b = shape.BoundBox
+    # BoundBox can enclose B-spline control points rather than the trimmed
+    # surface and changes after STEP reserialization. Avoid cached meshes and
+    # use precise geometry bounds on both sides of the roundtrip.
+    b = shape.optimalBoundingBox(False, False)
     return {k: getattr(b, k) for k in
             ('XMin', 'YMin', 'ZMin', 'XMax', 'YMax', 'ZMax',
              'XLength', 'YLength', 'ZLength')}
@@ -92,6 +95,7 @@ def export_checked(shape, colors, path, label):
             raise RuntimeError('Round-trip volume mismatch')
         a, b = bounds(shape), bounds(loaded)
         comparison = compare_bounds(a, b)
+        comparison['method'] = 'optimalBoundingBox(no_triangulation,no_shape_tolerance)'
         diagnostic = path.with_suffix('.validation.json')
         diagnostic.write_text(json.dumps(comparison, indent=2), encoding='utf-8')
         if not comparison['passed']:
