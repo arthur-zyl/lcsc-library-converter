@@ -1,4 +1,4 @@
-let state, settingsDirty = false, settingsSaving = false, toolDetectionBusy=false;
+let state, settingsDirty = false, settingsSaving = false, toolDetectionBusy=false,preflightBusy=false;
 const dirtyGroups=new Set();let activeSettingsGroup="general";
 function markSettingsDirty(group){dirtyGroups.add(group);settingsDirty=true;}
 function selectSettingsGroup(group, focus=false) {
@@ -25,7 +25,7 @@ function render(s) {
   const connectionStatus = s.converting ? 'converting' : s.processing ? 'processing' : s.bridge.active ? 'exporting' : s.edaLogin === 'signed-out' ? 'signed-out' : s.bridge.connected ? 'connected' : 'connecting';
   const connectionLabel = {converting:'正在转换元件库',processing:'正在提取模型',exporting:'正在导出',connected:'插件已连接',connecting:s.edaLogin === 'checking' ? '正在检查登录' : '插件未连接','signed-out':'未登录'}[connectionStatus];
   $('connection').dataset.status = connectionStatus; $('connection-label').textContent = '立创 EDA ' + connectionLabel;
-  $('export').disabled = !s.queue.length || !s.bridge.connected || s.edaLogin === 'signed-out' || !!s.bridge.active || s.processing || s.converting;
+  $('export').disabled = preflightBusy || !s.queue.length || !!s.bridge.active || s.processing || s.converting;
   $('clear').disabled = !s.queue.length || !!s.bridge.active || s.processing || s.converting;
   $('export').textContent = s.converting ? '正在转换库…' : s.processing ? '正在提取模型…' : s.bridge.active ? '正在导出…' : '开始批量导出';
   $('cart').hidden = s.page !== 'queue'; $('cart-total').textContent = s.queue.length + ' 个元件';
@@ -89,7 +89,13 @@ for(const [index,tab] of settingsTabs.entries()) {
   tab.addEventListener('keydown',event=>{let next;if(event.key==='ArrowDown')next=(index+1)%settingsTabs.length;else if(event.key==='ArrowUp')next=(index+settingsTabs.length-1)%settingsTabs.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=settingsTabs.length-1;else return;event.preventDefault();selectSettingsGroup(settingsTabs[next].dataset.settingsGroup,true);});
 }
 for (const id of ['back', 'forward', 'refresh', 'pair', 'pair-manual', 'installer', 'open-login','output-folder','export-log']) $(id).addEventListener('click', () => call(id));
-$('export').addEventListener('click',()=>call('export',$('export-target').value));
+$('preflight-close').addEventListener('click',()=>$('preflight-dialog').close());
+$('export').addEventListener('click',async()=>{
+  if(preflightBusy)return;const target=$('export-target').value;preflightBusy=true;render(state);$('export').textContent='正在检查…';
+  try{const result=await window.hub.call('export-check',target);if(result?.ok){await call('export',target);return;}
+    $('preflight-checks').replaceChildren();for(const check of result?.checks || [{label:'检查失败',message:result?.message || '请重试'}]){const row=document.createElement('div');row.className='preflight-row';row.dataset.ok=String(!!check.ok);row.append(text('strong',(check.ok?'✓ ':'! ')+check.label),text('p',check.message));if(!check.ok && check.group && check.group!=='queue'){const button=text('button',check.group==='eda'?'前往立创 EDA':'打开设置');button.addEventListener('click',async()=>{$('preflight-dialog').close();await call('page',check.group==='eda'?'eda':'settings');if(check.group!=='eda')selectSettingsGroup(check.group);});row.append(button);}$('preflight-checks').append(row);}$('preflight-dialog').showModal();
+  }catch(e){notice(e.message);}finally{preflightBusy=false;render(state);}
+});
 $('footprint-source').addEventListener('change',()=>call('footprint-source',$('footprint-source').value));
 $('export-target').addEventListener('change',()=>call('export-target',$('export-target').value));
 for (const key of settingKeys) $('setting-'+key).addEventListener('input', () => { markSettingsDirty($('setting-'+key).closest('[data-settings-panel]').dataset.settingsPanel); $('settings-hint').textContent = '有未保存的修改，保存后生效。'; });

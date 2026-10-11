@@ -4,6 +4,7 @@ const { Store, isShop } = require('./store.cjs'); const { Bridge, DISCOVERY_PORT
 const { attachDiscovery } = require('./discovery-session.cjs');
 const {createJob,cleanupJob,runJob}=require('./export-pipeline.cjs');
 const {ExportLog}=require('./export-log.cjs');
+const {preflight}=require('./preflight.cjs');
 let exportJournal;
 const { parseDetails } = require('./product-details.cjs');
 const { paths, saveSettings } = require('./settings.cjs');
@@ -235,6 +236,11 @@ app.whenReady().then(async () => {
         case 'export-target': if(!['kicad','cadence','altium'].includes(value))throw new Error('未知目标 EDA');store.state.exportTarget=value;await store.persist();break;
         case 'export-log': await openExportLog(store.state.lastExportLogs?.[store.state.exportTarget || 'kicad']);break;
         case 'output-folder': await openLibraryFolder(paths(store)[(store.state.exportTarget||'kicad')+'Dir']);break;
+        case 'export-check': {
+          if(startingExport || exportJob || processing || converting)throw new Error('已有任务运行中。');
+          const loggedIn=bridge.status().connected?await bridge.checkLogin():null;
+          return preflight(value || store.state.exportTarget || 'kicad',store.state.queue.map(x=>x.id),paths(store),{connected:bridge.status().connected,loggedIn});
+        }
         case 'export': {
           if(startingExport || bridge.active || exportJob || processing || converting || settingsBusy)throw new Error('已有任务运行中。');
           const ids=store.state.queue.map(x=>x.id),target=value || store.state.exportTarget || 'kicad';
@@ -247,6 +253,7 @@ app.whenReady().then(async () => {
             if(edaLogin==='signed-out')throw new Error('请先登录立创 EDA，再开始导出。');
             const authenticated=await bridge.checkLogin();
             if(authenticated!==true){if(authenticated===false)setLogin('signed-out');throw new Error('请登录立创 EDA 并连接插件后导出。');}
+            const checked=await preflight(target,ids,job.settings,{connected:bridge.status().connected,loggedIn:authenticated});if(!checked.ok)throw new Error(checked.checks.filter(x=>!x.ok).map(x=>x.label+'：'+x.message).join('\n'));
             exportProgress={total:ids.length,completed:0,currentId:'',stage:'准备导出工程'};
             setLogin('signed-in');current='eda';setEdaLocked(true);
             job.requestId=bridge.send(job.downloadIds).requestId;layout();log('开始一键导出 '+(({kicad:'KiCad',cadence:'Cadence',altium:'Altium Designer'}[target]))+' 库');

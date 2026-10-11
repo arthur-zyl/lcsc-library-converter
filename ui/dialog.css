@@ -3,3 +3,5 @@
 .app-dialog h2{font-size:17px;margin:0 0 12px}
 .app-dialog p{font-size:13px;line-height:22px;margin:0 0 22px;color:#718894}
 .dialog-actions{display:flex;justify-content:flex-end;gap:10px}
+
+#preflight-dialog{width:580px;max-height:85vh;overflow:auto}.preflight-row{padding:12px 0;border-bottom:1px solid #dce6ec}.preflight-row strong{font-size:13px}.preflight-row[data-ok=false] strong{color:#b25050}.preflight-row p{margin:6px 0;font-size:12px;overflow-wrap:anywhere}.preflight-row button{font-size:12px;padding:6px 10px}#preflight-dialog .dialog-actions{margin-top:18px}
