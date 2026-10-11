@@ -1,12 +1,11 @@
 const {componentFields}=require('./component-fields.cjs');
 const {convertSymbol}=require('./kicad-symbol.cjs'),sx=require('./sexpr.cjs');
 const {pathPoints}=require('./cadence-footprint.cjs');
-const {isSupplyPinName}=require('./cadence-symbol.cjs');
 const mm=n=>{const v=Number(n)*0.0254;if(!Number.isFinite(v))throw new Error('AD 封装坐标无效');return v;};
 function geometry(part,entry,footprintEntry){
   const symbol=convertSymbol(part,entry,'AD',footprintEntry),tree=sx.parse(symbol.text),warnings=[...symbol.warnings];
   const shapes=sx.children(tree,'symbol').flatMap(u=>sx.children(u,'pin').map(p=>sx.value(p,2)));
-  const pins=symbol.pins.map((p,i)=>({...p,shape:shapes[i],type:p.type==='unspecified'&&isSupplyPinName(p.name)?'power_in':p.type}));
+  const pins=symbol.pins.map((p,i)=>({...p,shape:shapes[i]}));
   if(pins.some(p=>p.type==='unspecified'))warnings.push('AD 未定义引脚映射为 Passive，请核查电气类型。');
   warnings.push('AD 符号图形位置按 1 mil 取整；封装与引脚保留原始分辨率。');
   const point=n=>[Number(sx.value(n)),Number(sx.value(n,2))];

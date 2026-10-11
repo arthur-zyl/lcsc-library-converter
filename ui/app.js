@@ -76,8 +76,6 @@ function render(s) {
   $('settings').hidden = s.page !== 'settings';
   renderSetup(s);
   if (s.settings) for (const key of settingKeys) if(!dirtyGroups.has($('setting-'+key).closest('[data-settings-panel]').dataset.settingsPanel)) $('setting-'+key).value = s.settings[key] ?? (key.endsWith('Source')?'easyeda':'');
-  if(!dirtyGroups.has('cadence') && s.settings){$('power-rules').value=s.settings.cadencePowerRules?.patterns || '';$('power-legacy-note').hidden=!s.settings.cadencePowerRules?.legacy; }
-  $('power-config-path').textContent='配置文件：'+(s.settings?.cadencePowerRulesPath || '');
   const settingsLocked = toolDetectionBusy || !!s.bridge.active || s.processing || s.converting || s.settingsBusy || settingsSaving;
   for (const element of $('settings-form').querySelectorAll('input,select,textarea,button')) element.disabled = settingsLocked;
   $('settings-save').textContent = s.settingsBusy || settingsSaving ? '正在保存…' : '保存当前设置';
@@ -114,7 +112,6 @@ $('settings-form').addEventListener('submit', async event => {
   const panel=document.querySelector('[data-settings-panel="'+activeSettingsGroup+'"]');
   for(const input of panel.querySelectorAll('input'))if(!input.checkValidity()){selectSettingsGroup(input.closest('[data-settings-panel]').dataset.settingsPanel);input.reportValidity();return;}
   const value = Object.fromEntries(settingKeys.filter(key=>panel.contains($('setting-'+key))).map(key=>[key,$('setting-'+key).value]));
-  if(activeSettingsGroup==='cadence')value.cadencePowerRules={format:'glob',patterns:$('power-rules').value,...(state.settings.cadencePowerRules?.legacy?{legacy:state.settings.cadencePowerRules.legacy}:{})};
   settingsSaving = true; render(state);
   try {
     const result = await call('settings-save',{group:activeSettingsGroup,values:value});
@@ -137,11 +134,6 @@ $('url').addEventListener('keydown', e => {
 });
 window.hub.onState(render); call('state').then(s => { if (s) render(s); });
 
-$('power-rules').addEventListener('input',()=>{markSettingsDirty('cadence');$('settings-hint').textContent='有未保存的修改，保存后生效。';$('power-test-result').textContent='';});
-$('power-reset').addEventListener('click',()=>{$('power-rules').value=state.settings.cadencePowerDefaults?.patterns || '';state.settings.cadencePowerRules={format:'glob',patterns:$('power-rules').value};$('power-legacy-note').hidden=true;$('power-rules').dispatchEvent(new Event('input'));});
-$('power-test').addEventListener('click',async()=>{
-  try{const result=await call('power-rules-test',{rules:{format:'glob',patterns:$('power-rules').value,...(state.settings.cadencePowerRules?.legacy?{legacy:state.settings.cadencePowerRules.legacy}:{})},name:$('power-test-name').value});$('power-test-result').textContent=result?.ok?(result.matched?'名称匹配：可补充识别为 Power（原库类型仍优先）。':'名称不匹配：不自动改为 Power。'):(result?.message || '测试失败');}catch(e){$('power-test-result').textContent='规则无效：'+e.message;}
-});
 $('power-repair').addEventListener('click',async()=>{
   if(dirtyGroups.has('cadence')){notice('请先保存设置，再更新已有原理图库。');return;}
   const result=await call('cadence-repair-symbols');if(result?.ok)notice(result.message);

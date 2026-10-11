@@ -4,7 +4,7 @@ const {spawn}=require('node:child_process'),{randomUUID}=require('node:crypto');
 const {libraryIndex,matchFootprint}=require('./local-footprints.cjs');
 const {reuseCadence}=require('./cadence-reuse.cjs');
 const {readComponent}=require('./easyeda-library.cjs');
-const {captureSymbol,libraryXml,applyPowerPinTypes}=require('./cadence-symbol.cjs');
+const {captureSymbol,libraryXml,applyPinNames}=require('./cadence-symbol.cjs');
 const {footprint,buildScript,auditScript,checkAudit}=require('./cadence-footprint.cjs');
 const {restoreModelColors}=require('./model-colors.cjs');
 const {libraryName,uniqueName}=require('./kicad-names.cjs');
@@ -77,9 +77,9 @@ async function convertCadenceLibrary(resources,settings,log=()=>{},control={}) {
     const originalXml=new Map(state.entries.map(e=>[e.id,e.xml]));
     // Upgrade managed symbols as the cumulative library is rebuilt.
     for(const entry of state.entries)entry.xml=entry.xml.replace(/fillStyle="[0-9]+"/g,'fillStyle="1"').replace(/<IsPinNamesRotated>\s*<Defn\s+val="[01]"\s*\/>\s*<\/IsPinNamesRotated>/g,'<IsPinNamesRotated><Defn val="1"/></IsPinNamesRotated>');
-    state.entries=state.entries.map(e=>applyPowerPinTypes(e,settings.cadencePowerRules));
+    state.entries=state.entries.map(e=>applyPinNames(e));
     const symbolsChanged=state.entries.some(e=>e.xml!==originalXml.get(e.id));
-    for(const e of state.entries)for(const warning of e.warnings||[])if(warning.startsWith('电源规则更新')||warning.startsWith('同名非 Power'))log(`${e.id}：${warning}`);
+    for(const e of state.entries)for(const warning of e.warnings||[])if(warning.startsWith('引脚名称/类型更新'))log(`${e.id}：${warning}`);
     const entries=new Map(state.entries.map(e=>[e.id,e])),symbols=new Map(state.entries.map(e=>[e.entry,e.id])),footprints=new Map(state.entries.map(e=>[e.footprintEntry,e.id])),pending=[],results=[];
     for(const name of await fs.readdir(output)){if(name.endsWith('.psm')&&!footprints.has(name.slice(0,-4)))footprints.set(name.slice(0,-4),'unmanaged');}
     let localIndex=[];try{localIndex=await libraryIndex('cadence',settings);}catch(e){log('本地封装库不可用，回退立创：'+e.message);}
@@ -115,7 +115,7 @@ async function convertCadenceLibrary(resources,settings,log=()=>{},control={}) {
         else await restoreModelColors(part,settings,log);
         const model={modelName,bytes:existingModel && !replaceModel?existingModel:await fs.readFile(part.model),replace:replaceModel};
         log(`${r.id}：${replaceModel?'真实模型替换高度占位模型':selectedSource.placeholder?'使用高度占位模型（可由真实模型替换）':'使用封装共用模型'} ${modelName}`);
-        const symbol=prior?.symbolExists?entries.get(r.id):captureSymbol(part,entry,footprintEntry,settings.cadencePowerRules),work=path.join(scratch,part.id);await fs.mkdir(work);
+        const symbol=prior?.symbolExists?entries.get(r.id):captureSymbol(part,entry,footprintEntry),work=path.join(scratch,part.id);await fs.mkdir(work);
         let fp,reuseWarning;
         const existingDra=prior && await fs.stat(path.join(output,footprintEntry+'.dra')).catch(e=>{if(e.code==='ENOENT')return false;throw e;});
         if(prior?.footprintExists){fp={...prior.record,placement:prior.record.modelPlacement,work:output,files:prior.record.files,warnings:[...prior.record.warnings]};log(`${r.id}：封装已存在，跳过封装转换`);}

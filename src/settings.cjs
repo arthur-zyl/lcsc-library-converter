@@ -2,9 +2,8 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const {libraryName}=require('./kicad-names.cjs');
-const {readRules,rulesPath,validateRules,BUILTIN,DEFAULT}=require('./power-pin-rules.cjs');
 function paths(store) {
-  return {cadencePowerRules:readRules(store),cadencePowerRulesPath:rulesPath(store),cadencePowerBuiltin:BUILTIN,cadencePowerDefaults:DEFAULT,freecadPython:store.state.freecadPython,kicadFootprintSource:store.state.kicadFootprintSource||'easyeda',cadenceFootprintSource:store.state.cadenceFootprintSource||'easyeda',kicadFootprintDir:store.state.kicadFootprintDir||'',cadenceFootprintDir:store.state.cadenceFootprintDir||'',
+  return {freecadPython:store.state.freecadPython,kicadFootprintSource:store.state.kicadFootprintSource||'easyeda',cadenceFootprintSource:store.state.cadenceFootprintSource||'easyeda',kicadFootprintDir:store.state.kicadFootprintDir||'',cadenceFootprintDir:store.state.cadenceFootprintDir||'',
     altiumDir:store.state.altiumDir||path.join(store.root,'altium'),altiumLibraryName:store.state.altiumLibraryName||'LCSC',altiumFootprintSource:store.state.altiumFootprintSource||'easyeda',altiumFootprintDir:store.state.altiumFootprintDir||'',
     resourceDir:store.state.resourceDir || path.join(store.root,'resources'),
     downloadDir:store.state.downloadDir || path.join(store.root,'downloads'),
@@ -13,7 +12,6 @@ function paths(store) {
 }
 async function saveSettings(store, input, {target,group}={}) {
   if(group)return saveGroup(store,input,group);
-  const rules=validateRules(input?.cadencePowerRules ?? readRules(store));
   const settings = {};
   for(const provider of ['kicad','cadence','altium']) {
     const source=input?.[provider+'FootprintSource'] ?? paths(store)[provider+'FootprintSource'];
@@ -56,17 +54,12 @@ async function saveSettings(store, input, {target,group}={}) {
     finally { await fs.unlink(probe).catch(()=>{}); }
   }
   const prior = {...store.state}; Object.assign(store.state,settings);
-  const file=rulesPath(store),temp=file+'.'+randomUUID()+'.tmp';let old;
-  try {
-    old=await fs.readFile(file).catch(e=>{if(e.code==='ENOENT')return null;throw e;});
-    await fs.writeFile(temp,JSON.stringify(rules,null,2));await fs.rename(temp,file);
-    try{await store.persist();}catch(e){if(old===null)await fs.unlink(file);else await fs.writeFile(file,old);throw e;}
-  } catch (error) { store.state = prior; throw error; } finally {await fs.unlink(temp).catch(()=>{});}
+  try {await store.persist();} catch(error) {store.state=prior;throw error;}
   return settings;
 }
 async function saveGroup(store,input,group){
   if(!['general','kicad','cadence','altium'].includes(group))throw new Error('未知设置分组');
-  const settings={},current=paths(store);let rules;
+  const settings={},current=paths(store);
   const absolute=(key,label)=>{const value=String(input?.[key]??current[key]??'').trim();if(!value || !path.isAbsolute(value))throw new Error(label+'需要完整的绝对路径。');return value;};
   if(group==='general'){
     settings.freecadPython=absolute('freecadPython','FreeCAD Python');if(!(await fs.stat(settings.freecadPython).catch(()=>null))?.isFile())throw new Error('找不到 FreeCAD Python，请选择 bin/python.exe。');
@@ -79,12 +72,10 @@ async function saveGroup(store,input,group){
     if(group==='kicad'){settings.kicadCli=String(input?.kicadCli??current.kicadCli??'').trim();if(settings.kicadCli && (!path.isAbsolute(settings.kicadCli) || !(await fs.stat(settings.kicadCli).catch(()=>null))?.isFile()))throw new Error('找不到 KiCad CLI。');}
     if(group==='cadence'){
       settings.cadenceRoot=String(input?.cadenceRoot??current.cadenceRoot??'').trim();if(settings.cadenceRoot){if(!path.isAbsolute(settings.cadenceRoot))throw new Error('Cadence 需要完整的安装路径。');for(const file of ['tclsh.exe','orDb_Dll_Tcl64.dll','allegro.exe'])if(!(await fs.stat(path.join(settings.cadenceRoot,'tools/bin',file)).catch(()=>null))?.isFile())throw new Error('Cadence 安装缺少 '+file);}
-      rules=validateRules(input?.cadencePowerRules??readRules(store));
     }
   }
-  const prior={...store.state},file=rulesPath(store);let old,temp;
-  try{if(rules){old=await fs.readFile(file).catch(e=>{if(e.code==='ENOENT')return null;throw e;});temp=file+'.'+randomUUID()+'.tmp';await fs.writeFile(temp,JSON.stringify(rules,null,2));await fs.rename(temp,file);}Object.assign(store.state,settings);await store.persist();}
-  catch(e){store.state=prior;if(rules && old!==undefined){if(old===null)await fs.unlink(file).catch(()=>{});else await fs.writeFile(file,old);}throw e;}finally{if(temp)await fs.unlink(temp).catch(()=>{});}
+  const prior={...store.state};
+  try{Object.assign(store.state,settings);await store.persist();}catch(e){store.state=prior;throw e;}
   return settings;
 }
 module.exports = {paths,saveSettings,saveGroup};

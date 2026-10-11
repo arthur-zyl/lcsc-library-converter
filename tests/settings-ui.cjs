@@ -4,14 +4,14 @@ const root=path.resolve(__dirname,'..');
 app.setPath('userData',path.join(app.getPath('temp'),'hub-settings-ui-'+require('node:crypto').randomUUID()));
 app.whenReady().then(async()=>{
   const state={queue:[],resources:[],logs:[],page:'settings',edaLogin:'signed-in',bridge:{connected:true},navigation:{},settings:{freecadPython:'D:\\FreeCAD 1.1\\bin\\python.exe',resourceDir:'E:\\EDA-Library',downloadDir:'E:\\EDA-Downloads',kicadCli:'D:\\KiCad\\9.0\\bin\\kicad-cli.exe',kicadDir:'E:\\KiCad-Library',kicadFootprintLibraryName:'MyParts',cadenceRoot:'D:/Cadence/SPB_25.1',cadenceDir:'E:/Cadence-Library',cadenceLibraryName:'CadenceParts',altiumDir:'E:/AD-Library',altiumLibraryName:'ADParts',altiumFootprintSource:'easyeda',altiumFootprintDir:''}};
-  const {BUILTIN,DEFAULT,matcher}=require('../src/power-pin-rules.cjs');Object.assign(state.settings,{cadencePowerBuiltin:BUILTIN,cadencePowerDefaults:DEFAULT,cadencePowerRules:DEFAULT,cadencePowerRulesPath:'E:/hub/data/cadence-power-pins.json'});let repairs=0,detectionFails=false;
+  let repairs=0,detectionFails=false;
   const win=new BrowserWindow({show:false,width:1440,height:960,backgroundColor:'#edf2f5',webPreferences:{offscreen:true,preload:path.join(root,'src/preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
   let painted;
   win.webContents.on('paint',(_event,_dirty,image)=>{const png=image.toPNG();if(png.length)painted=png;});
-  ipcMain.handle('hub:action',(_event,action,value)=>{if(action==='settings-detect')return detectionFails?{ok:false,message:'未检测到安装'}:{ok:true,path:'E:/Detected/'+value,message:'已检测到'};if(action==='settings-save')state.settings={...state.settings,...(value.values || value)};if(action==='power-rules-test')return {ok:true,matched:matcher(value.rules)(value.name)};if(action==='cadence-repair-symbols'){repairs++;return {ok:true,message:'已更新'};}return action==='state' ? state : {ok:true,path:null};});
+  ipcMain.handle('hub:action',(_event,action,value)=>{if(action==='settings-detect')return detectionFails?{ok:false,message:'未检测到安装'}:{ok:true,path:'E:/Detected/'+value,message:'已检测到'};if(action==='settings-save')state.settings={...state.settings,...(value.values || value)};if(action==='cadence-repair-symbols'){repairs++;return {ok:true,message:'已更新'};}return action==='state' ? state : {ok:true,path:null};});
   await win.loadFile(path.join(root,'ui/index.html')); await new Promise(r=>setTimeout(r,200));
   assert.ok(await win.webContents.executeJavaScript('!document.getElementById("settings").hidden && document.querySelectorAll(".settings-field").length>=11 && document.querySelector(".toolbar").hidden'));
-  assert.ok(await win.webContents.executeJavaScript("!document.querySelector('[data-settings-group=advanced]') && document.getElementById('power-rules').closest('[data-settings-panel]').dataset.settingsPanel==='cadence' && document.querySelector('[data-page=eda]').textContent==='立创 EDA'"));
+  assert.ok(await win.webContents.executeJavaScript("!document.querySelector('[data-settings-group=advanced]') && !document.getElementById('power-rules') && document.getElementById('power-repair').closest('[data-settings-panel]').dataset.settingsPanel==='cadence' && document.querySelector('[data-page=eda]').textContent==='立创 EDA'"));
   const screenshots=process.argv.find(x=>x.startsWith('--screenshots='));
   for(const group of ['general','kicad','altium','cadence']){
     await win.webContents.executeJavaScript(`document.getElementById('settings-tab-${group}').click()`);
@@ -53,13 +53,7 @@ app.whenReady().then(async()=>{
   await win.webContents.executeJavaScript('document.getElementById("settings-form").requestSubmit()');await new Promise(r=>setTimeout(r,100));
   assert.equal(state.settings.kicadFootprintSource,'easyeda');
   await win.webContents.executeJavaScript('document.getElementById("settings-tab-kicad").click();document.getElementById("settings-form").requestSubmit()');await new Promise(r=>setTimeout(r,80));assert.equal(state.settings.kicadFootprintSource,'eda');assert.equal(state.settings.cadenceFootprintSource,'easyeda');
-  await win.webContents.executeJavaScript('document.getElementById("settings-tab-cadence").click();document.getElementById("power-test").click()');await new Promise(r=>setTimeout(r,60));
-  assert.ok(await win.webContents.executeJavaScript('!document.getElementById("settings-panel-cadence").hidden && document.getElementById("power-test-result").textContent.includes("可补充识别")'));
-  await win.webContents.executeJavaScript('document.getElementById("power-rules").value="CUSTOM_RAIL\\n!VCCO_DDR_502";document.getElementById("power-rules").dispatchEvent(new Event("input"));document.getElementById("power-test").click();document.getElementById("power-repair").click()');await new Promise(r=>setTimeout(r,60));
-  assert.equal(repairs,0);assert.ok(await win.webContents.executeJavaScript('document.getElementById("power-test-result").textContent.includes("不匹配")'));
-  await win.webContents.executeJavaScript('document.getElementById("settings-form").requestSubmit()');await new Promise(r=>setTimeout(r,100));assert.deepEqual(state.settings.cadencePowerRules,{format:'glob',patterns:'CUSTOM_RAIL\n!VCCO_DDR_502'});
-  await win.webContents.executeJavaScript('document.getElementById("power-repair").click()');await new Promise(r=>setTimeout(r,60));assert.equal(repairs,1);
-  await win.webContents.executeJavaScript('document.getElementById("power-reset").click();document.getElementById("settings-form").requestSubmit()');await new Promise(r=>setTimeout(r,100));assert.deepEqual(state.settings.cadencePowerRules,DEFAULT);
+  await win.webContents.executeJavaScript('document.getElementById("settings-tab-cadence").click();document.getElementById("power-repair").click()');await new Promise(r=>setTimeout(r,100));assert.equal(repairs,1);
   const advancedPreview=process.argv.find(x=>x.startsWith('--advanced-preview='));if(advancedPreview)await fs.writeFile(advancedPreview.slice(19),(await win.webContents.capturePage()).toPNG());
   await win.webContents.executeJavaScript("document.getElementById('settings-tab-kicad').click();document.querySelector('[data-setting-detect=kicadCli]').click()");await new Promise(r=>setTimeout(r,80));
   assert.equal(await win.webContents.executeJavaScript("document.getElementById('setting-kicadCli').value"),'E:/Detected/kicadCli');

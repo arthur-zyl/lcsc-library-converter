@@ -54,8 +54,7 @@ test('settings keep compatible defaults, persist custom paths and reject invalid
   assert.equal(paths(store).resourceDir,path.join(root,'resources')); assert.equal(paths(store).downloadDir,path.join(root,'downloads'));
   const python=path.join(root,'python.exe'); await fs.writeFile(python,'test fixture');
   const settings={freecadPython:python,resourceDir:path.join(root,'custom library'),downloadDir:path.join(root,'custom downloads')};
-  const {DEFAULT,BUILTIN}=require('../src/power-pin-rules.cjs');
-  const expected={...settings,altiumDir:path.join(root,'altium'),altiumLibraryName:'LCSC',altiumFootprintSource:'easyeda',altiumFootprintDir:'',cadencePowerRules:DEFAULT,cadencePowerRulesPath:path.join(root,'cadence-power-pins.json'),cadencePowerBuiltin:BUILTIN,cadencePowerDefaults:DEFAULT,kicadFootprintSource:'easyeda',cadenceFootprintSource:'easyeda',kicadFootprintDir:'',cadenceFootprintDir:'',kicadCli:'',kicadDir:path.join(root,'kicad'),kicadFootprintLibraryName:'LCSC',cadenceRoot:'',cadenceDir:path.join(root,'cadence'),cadenceLibraryName:'LCSC'};
+  const expected={...settings,altiumDir:path.join(root,'altium'),altiumLibraryName:'LCSC',altiumFootprintSource:'easyeda',altiumFootprintDir:'',kicadFootprintSource:'easyeda',cadenceFootprintSource:'easyeda',kicadFootprintDir:'',cadenceFootprintDir:'',kicadCli:'',kicadDir:path.join(root,'kicad'),kicadFootprintLibraryName:'LCSC',cadenceRoot:'',cadenceDir:path.join(root,'cadence'),cadenceLibraryName:'LCSC'};
   await saveSettings(store,settings);
   assert.deepEqual(paths(await new Store(root).init({freshQueue:true})),expected);
   assert.deepEqual(await fs.readdir(settings.resourceDir),[]);
@@ -68,13 +67,10 @@ test('settings keep compatible defaults, persist custom paths and reject invalid
   await assert.rejects(saveSettings(store,{...settings,kicadFootprintSource:'unknown'}),/封装来源/);
   await assert.rejects(saveSettings(store,{...settings,cadenceFootprintDir:'relative'}),/封装库目录/);
   await saveSettings(store,{...settings,kicadFootprintLibraryName:'MyParts'});assert.equal(paths(await new Store(root).init()).kicadFootprintLibraryName,'MyParts');
-  const rules={extra:['CUSTOM_RAIL'],exclude:['VDD_EN']};await saveSettings(store,{...settings,cadencePowerRules:rules});
-  assert.deepEqual(paths(await new Store(root).init()).cadencePowerRules,require('../src/power-pin-rules.cjs').validateRules(rules));
-  const before=await fs.readFile(paths(store).cadencePowerRulesPath,'utf8');
-  await assert.rejects(saveSettings(store,{...settings,cadencePowerRules:{extra:['['],exclude:[]}}),/正则无效/);
-  assert.equal(await fs.readFile(paths(store).cadencePowerRulesPath,'utf8'),before);
-  await fs.writeFile(paths(store).cadencePowerRulesPath,JSON.stringify({extra:['MANUAL_RAIL'],exclude:[]}));
-  assert.deepEqual(paths(store).cadencePowerRules,{format:'glob',patterns:'MANUAL_RAIL'});
+  await fs.writeFile(path.join(root,'cadence-power-pins.json'),'invalid obsolete config');
+  assert.equal(paths(store).cadencePowerRules,undefined);
+  await saveSettings(store,settings); // Obsolete rules cannot block settings or exports.
+
 });
 
 test('resource indexing uses the selected library directory and leaves original files in place', async () => {

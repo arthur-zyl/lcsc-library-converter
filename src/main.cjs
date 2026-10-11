@@ -318,17 +318,13 @@ app.whenReady().then(async () => {
           } finally { settingsBusy=false; publish(); }
           return {ok:true,message:'设置已保存'};
         }
-        case 'power-rules-test': {
-          const {matcher}=require('./power-pin-rules.cjs');
-          return {ok:true,matched:matcher(value.rules)(String(value.name||'').slice(0,200))};
-        }
         case 'cadence-repair-symbols': {
           if(startingExport || bridge.active || exportJob || processing || converting || settingsBusy)throw new Error('已有任务运行中，请等待完成。');
           converting=true;publish();
           try{
             const {convertCadenceLibrary}=require('./cadence.cjs');
             const result=await convertCadenceLibrary([],paths(store),log);
-            return {ok:true,message:result.symbolsUpdated?`已按保存的电源规则更新原理图库（${result.managedSymbols} 个元件），封装和模型保持原样。`:'已有原理图库无需修改。'};
+            return {ok:true,message:result.symbolsUpdated?`已恢复源引脚类型并更新重复名称（${result.managedSymbols} 个元件），封装和模型保持原样。`:'已有原理图库无需修改。'};
           }finally{converting=false;publish();}
         }
         case 'installer': await shell.openPath(path.join(ROOT, 'dist')); break;

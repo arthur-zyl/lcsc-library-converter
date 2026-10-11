@@ -4,18 +4,6 @@ const {footprint,pathPoints,auditScript,checkAudit}=require('../src/cadence-foot
 const {convertCadenceLibrary,commitFiles}=require('../src/cadence.cjs');
 const fixture=id=>path.join(__dirname,'fixtures/kicad',id);
 
-test('Multiline power patterns use glob wildcards, comments, last match and literal regex characters',()=>{
-  const {matcher,validateRules}=require('../src/power-pin-rules.cjs');
-  const matches=matcher('# comment\nCUSTOM_*\n!CUSTOM_SENSE\nCUSTOM_SENSE\n!VCCO_*\nRAIL?\nA.B\n[ABC]');
-  for(const n of ['CUSTOM_1','custom_sense','RAIL1','A.B','[ABC]'])assert.ok(matches(n),n);
-  for(const n of ['VCCO_34','RAIL12','AxB','A'])assert.ok(!matches(n),n);
-  assert.throws(()=>validateRules('!'),/第 1 行/);
-  const old={extra:['SPECIAL[0-9]+'],exclude:['SPECIAL9']};
-  const migrated=validateRules(old);assert.ok(migrated.legacy);
-  assert.ok(matcher(migrated)('SPECIAL1'));assert.ok(!matcher(migrated)('SPECIAL9'));
-  assert.ok(matcher({...migrated,patterns:'SPECIAL9'})('SPECIAL9'));
-});
-
 test('Capture accepts description whitespace and native ANSI conversion but rejects substantive changes',{skip:!process.env.HUB_CADENCE_ROOT||!process.env.HUB_FREECAD_PYTHON},async()=>{
   const d=await fs.mkdtemp(path.join(os.tmpdir(),'hub-capture-description-'));
   try{
@@ -36,26 +24,32 @@ test('Capture accepts description whitespace and native ANSI conversion but reje
   }finally{await fs.rm(d,{recursive:true,force:true});}
 });
 
-function powerTestSymbol(names=['VDDIO','VDDIO','VDDIO','VDD','VDD','VSS','VSS','RESET','RESET','VDD_SENSE','VDD_EN','VSS'],rules) {
+function powerTestSymbol(names=['VDDIO','VDDIO','VDDIO','VDD','VDD','VSS','VSS','RESET','RESET','VDD_SENSE','VDD_EN','VSS'],splitAt) {
   const rows=[['DOCTYPE','SYMBOL','1.1'],['HEAD',{}],['PART','A']];
   for(const [i,name] of names.entries()) {
+    if(i===splitAt)rows.push(['PART','B']);
     rows.push(['PIN','p'+i,1,null,-10,i*10,10,0,null,0,0],['ATTR','n'+i,'p'+i,'NUMBER',String(i+1),0,1],['ATTR','a'+i,'p'+i,'NAME',name,0,1]);
     if(i===11)rows.push(['ATTR','t'+i,'p'+i,'Pin Type','NoConnect',0,1]);
   }
-  return captureSymbol({id:'C123',name:'SupplyTest',description:'',properties:{Designator:'U?'},symbolRows:rows},'SupplyTest','Pkg',rules);
+  return captureSymbol({id:'C123',name:'SupplyTest',description:'',properties:{Designator:'U?'},symbolRows:rows},'SupplyTest','Pkg');
 }
 
-test('FPGA domains and custom rules preserve signals, explicit power and NC; rules can be reversed',()=>{
-  const {applyPowerPinTypes,isSupplyPinName}=require('../src/cadence-symbol.cjs');
-  for(const name of ['VCCO_34','VCCO_35','VCCBRAM','VCCPAUX','VCCPINT','VCCO_DDR_502','VCCO_MIO0_500','VCCO_MIO1_501','VCCINT','VCCAUX'])assert.ok(isSupplyPinName(name),name);
-  for(const name of ['VCC_SENSE','VCCO_EN','VDD_EN','VCCINT_PG','VCCO_34_SENSE'])assert.ok(!isSupplyPinName(name),name);
-  let r=powerTestSymbol(['CUSTOM_RAIL','CUSTOM_RAIL','RESET','RESET','VCCO_34','VCCO_34'],{extra:['CUSTOM_RAIL'],exclude:[]});
-  assert.deepEqual(r.pins.map(p=>p.type),[7,7,4,4,7,7]);
-  assert.ok(r.warnings.some(w=>w.includes('RESET（3、4）')));
-  r=applyPowerPinTypes(r,{extra:['CUSTOM_RAIL'],exclude:['CUSTOM_RAIL','VCCO_34']});assert.ok(r.pins.every(p=>p.type===4));
-  r.pins[0].type=7;r.powerPinBaseTypes[0]=7;r.xml=r.xml.replace('type="4"','type="7"');
-  r=applyPowerPinTypes(r,{extra:[],exclude:['.*']});assert.equal(r.pins[0].type,7);
-  assert.throws(()=>isSupplyPinName('VDD',{extra:['['],exclude:[]}),/正则无效/);
+test('duplicate pin names reserve existing names case-insensitively and restore only inferred types',()=>{
+ const {applyPinNames}=require('../src/cadence-symbol.cjs');
+ const symbol=powerTestSymbol(['VDD','VDD','VDD_1','VDD__1','RESET','RESET','reset_1','NC','NC']);
+ assert.deepEqual(symbol.pins.map(p=>p.name),['VDD___1','VDD___2','VDD_1','VDD__1','RESET__1','RESET__2','reset_1','NC_1','NC_2']);
+ assert.ok(symbol.pins.every(p=>p.type===4));assert.equal(new Set(symbol.pins.map(p=>p.name.toUpperCase())).size,symbol.pins.length);
+ assert.equal(applyPinNames(symbol).xml,symbol.xml);
+ const legacy={...symbol,pins:symbol.pins.map((p,i)=>({...p,type:i===0?7:p.type})),xml:symbol.xml.replace('type="4"','type="7"')};
+ const repaired=applyPinNames(legacy);assert.ok(repaired.pins.every(p=>p.type===4));
+ const sourcePower={...symbol,powerPinBaseTypes:symbol.powerPinBaseTypes.map((t,i)=>i===0?7:t)};
+ assert.equal(applyPinNames(sourcePower).pins[0].type,7);
+});
+
+test('duplicate names are unique across units and XML replacement preserves literal special characters',()=>{
+ const symbol=powerTestSymbol(['VDD','SIG$&','VDD','SIG$&'],2);
+ assert.equal(symbol.units,2);assert.deepEqual(symbol.pins.map(p=>p.name),['VDD_1','SIG$&_1','VDD_2','SIG$&_2']);
+ assert.match(symbol.xml,/name="SIG\$&amp;_1"/);assert.match(symbol.xml,/name="SIG\$&amp;_2"/);
 });
 
 test('Repair managed Capture library without downloading resources or changing footprint/model',{skip:!process.env.HUB_CADENCE_ROOT||!process.env.HUB_FREECAD_PYTHON,timeout:60000},async()=>{
@@ -64,35 +58,30 @@ test('Repair managed Capture library without downloading resources or changing f
     const settings={cadenceRoot:process.env.HUB_CADENCE_ROOT,freecadPython:process.env.HUB_FREECAD_PYTHON,cadenceDir:path.join(d,'out'),cadenceLibraryName:'PowerRepair'};
     await fs.mkdir(settings.cadenceDir);
     const names=['VCCO_34','VCCO_34','VCCBRAM','VCCBRAM','VCCO_DDR_502','VCCO_DDR_502','RESET','RESET'];
-    const record={id:'C123',entry:'SupplyTest',footprintEntry:'Pkg',...powerTestSymbol(names,{extra:[],exclude:['.*']})};
+    const record={id:'C123',entry:'SupplyTest',footprintEntry:'Pkg',...powerTestSymbol(names)};
     const native=await require('../src/cadence.cjs').captureNative([record],'PowerRepair',d,settings,settings.cadenceRoot);
     await fs.copyFile(native.olb,path.join(settings.cadenceDir,'PowerRepair.olb'));
     const files=['PowerRepair.olb','hub_cadence.json','Pkg.dra','Pkg.step'];
     for(const name of ['Pkg.dra','Pkg.step'])await fs.writeFile(path.join(settings.cadenceDir,name),'DO NOT CHANGE');
     await fs.writeFile(path.join(settings.cadenceDir,'hub_cadence.json'),JSON.stringify({schema:'eda-component-hub/cadence-v1',library:'PowerRepair',entries:[record],files}));
+    // Simulate the previous version's name-inferred Power types.
+    record.pins.forEach(p=>{p.type=7;});record.xml=record.xml.replaceAll('type="4"','type="7"');
+    await fs.writeFile(path.join(settings.cadenceDir,'hub_cadence.json'),JSON.stringify({schema:'eda-component-hub/cadence-v1',library:'PowerRepair',entries:[record],files}));
     let result=await convertCadenceLibrary([],settings);assert.equal(result.symbolsUpdated,true);
     let state=JSON.parse(await fs.readFile(path.join(settings.cadenceDir,'hub_cadence.json')));
-    assert.deepEqual(state.entries[0].pins.map(p=>p.type),[7,7,7,7,7,7,4,4]);
+    assert.ok(state.entries[0].pins.every(p=>p.type===4));assert.equal(new Set(state.entries[0].pins.map(p=>p.name)).size,8);
     for(const name of ['Pkg.dra','Pkg.step'])assert.equal(await fs.readFile(path.join(settings.cadenceDir,name),'utf8'),'DO NOT CHANGE');
-    settings.cadencePowerRules={extra:[],exclude:['.*']};
-    result=await convertCadenceLibrary([],settings);assert.equal(result.symbolsUpdated,true);
-    state=JSON.parse(await fs.readFile(path.join(settings.cadenceDir,'hub_cadence.json')));assert.ok(state.entries[0].pins.every(p=>p.type===4));
     result=await convertCadenceLibrary([],settings);assert.equal(result.symbolsUpdated,false);
   }finally{await fs.rm(d,{recursive:true,force:true});}
 });
-test('Power supply names retain duplicates and physical numbers; signals and NC remain unchanged',()=>{
-  const symbol=powerTestSymbol();
-  assert.deepEqual(symbol.pins.map(p=>p.type),[7,7,7,7,7,7,7,4,4,4,4,4]);
-  assert.deepEqual(symbol.pins.map(p=>p.number),Array.from({length:12},(_,i)=>String(i+1)));
-  assert.equal(symbol.pins.filter(p=>p.name==='VDDIO').length,3);
-  const {applyPowerPinTypes,isSupplyPinName}=require('../src/cadence-symbol.cjs');
-  for(const name of ['VDDIO','VDD','VSS','AVDD','DVDD','VCC','AGND','GND','VDD_3V3'])assert.ok(isSupplyPinName(name),name);
-  for(const name of ['VDD_EN','VDD_SENSE','GPIO','RESET','GND_DETECT'])assert.ok(!isSupplyPinName(name),name);
-  const old={...symbol,pins:symbol.pins.map(p=>({...p,type:p.type===7?4:p.type})),xml:symbol.xml.replaceAll('type="7"','type="4"')};
-  const repaired=applyPowerPinTypes(old);
-  assert.deepEqual(repaired.pins,symbol.pins);assert.equal(repaired.xml,symbol.xml);
+test('duplicate names get suffixes while physical numbers, source types and NC remain unchanged',()=>{
+ const symbol=powerTestSymbol();assert.ok(symbol.pins.every(p=>p.type===4));
+ assert.deepEqual(symbol.pins.map(p=>p.number),Array.from({length:12},(_,i)=>String(i+1)));
+ assert.deepEqual(symbol.pins.slice(0,3).map(p=>p.name),['VDDIO_1','VDDIO_2','VDDIO_3']);
+ assert.equal(new Set(symbol.pins.map(p=>p.name)).size,12);assert.match(symbol.xml,/<IsNoConnect><Defn val="1"/);
 });
-test('Repeated supply pins remain Power after native OLB roundtrip',{skip:!process.env.HUB_CADENCE_ROOT||!process.env.HUB_FREECAD_PYTHON},async()=>{
+
+test('unique supply names remain Passive after native OLB roundtrip',{skip:!process.env.HUB_CADENCE_ROOT||!process.env.HUB_FREECAD_PYTHON},async()=>{
   const d=await fs.mkdtemp(path.join(os.tmpdir(),'hub-capture-power-'));
   try {
     const r={id:'C123',entry:'SupplyTest',footprintEntry:'Pkg',...powerTestSymbol()};
@@ -100,7 +89,7 @@ test('Repeated supply pins remain Power after native OLB roundtrip',{skip:!proce
     const native=await captureNative([r],'PowerTest',d,{freecadPython:process.env.HUB_FREECAD_PYTHON},process.env.HUB_CADENCE_ROOT);
     assert.ok((await fs.stat(native.olb)).size>100);
     const xml=await fs.readFile(native.roundtrip,'utf8');
-    assert.equal((xml.match(/name="VDDIO"[^>]*type="7"/g)||[]).length,3);
+    assert.equal((xml.match(/name="VDDIO_[123]"[^>]*type="4"/g)||[]).length,3);
   }finally{await fs.rm(d,{recursive:true,force:true});}
 });
 test('Cadence uses MPN, physical pin identifiers, and original unit geometry',async()=>{

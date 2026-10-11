@@ -2,8 +2,8 @@ const {app,BrowserWindow,ipcMain}=require('electron');
 const fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');app.setPath('userData',path.join(app.getPath('temp'),'hub-setup-ui-'+require('node:crypto').randomUUID()));
 app.whenReady().then(async()=>{
-  const {DEFAULT}=require('../src/power-pin-rules.cjs');
-  const state={queue:[],logs:[],page:'setup',edaLogin:'signed-out',bridge:{connected:false},navigation:{},settings:{freecadPython:'',kicadCli:'',cadenceRoot:'',kicadDir:'E:/Libraries/KiCad',cadenceDir:'E:/Libraries/Cadence',altiumDir:'E:/Libraries/AD',kicadFootprintLibraryName:'LCSC',cadenceLibraryName:'LCSC',altiumLibraryName:'LCSC',cadencePowerRules:DEFAULT}};
+
+  const state={queue:[],logs:[],page:'setup',edaLogin:'signed-out',bridge:{connected:false},navigation:{},settings:{freecadPython:'',kicadCli:'',cadenceRoot:'',kicadDir:'E:/Libraries/KiCad',cadenceDir:'E:/Libraries/Cadence',altiumDir:'E:/Libraries/AD',kicadFootprintLibraryName:'LCSC',cadenceLibraryName:'LCSC',altiumLibraryName:'LCSC',}};
   const win=new BrowserWindow({show:false,width:1060,height:720,webPreferences:{offscreen:true,preload:path.join(root,'src/preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
   let saved,download;let failSave=true;
   const send=()=>win.webContents.send('hub:state',state);
