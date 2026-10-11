@@ -87,3 +87,5 @@ main{position:absolute;left:16px;right:16px;top:82px;bottom:16px}.toolbar{displa
 
 #settings .settings-check{display:flex;align-items:center;gap:10px;cursor:pointer}
 #settings .settings-check input[type=checkbox]{width:18px;height:18px;flex:none;margin:0;padding:0;accent-color:#245e77}
+
+.needs-login #browser-placeholder{top:76px}

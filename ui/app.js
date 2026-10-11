@@ -18,6 +18,9 @@ function text(tag, value) { const element = document.createElement(tag); element
 function render(s) {
   const pageChanged = state?.page !== s.page;
   state = s; $('count').textContent = s.queue.length;
+  const navigationPrompt=$('navigation-dialog');
+  if(s.navigationConfirmation){$('navigation-message').textContent=(s.navigationConfirmation.provider==='eda'?'立创 EDA':'立创商城')+'请求确认离开当前页面。尚未保存的修改可能丢失，请先保存，或确认继续。';if(!navigationPrompt.open)navigationPrompt.showModal();}
+  else if(navigationPrompt.open)navigationPrompt.close();
   $('back').disabled = s.edaLocked || !s.navigation?.back; $('forward').disabled = s.edaLocked || !s.navigation?.forward;
   $('url').disabled = s.edaLocked || !s.navigation?.available;
   if (pageChanged || document.activeElement !== $('url')) $('url').value = s.navigation?.url || '';
@@ -36,7 +39,7 @@ function render(s) {
   $('login-message').textContent = loggedOut ? '立创 EDA 未登录，请先登录。' : (s.edaLogin === 'signed-in' ? '立创 EDA 已登录。' : '') + '连接插件未连接，请导入插件并开启外部交互权限。';
   $('open-login').textContent = loggedOut ? '前往登录' : '前往立创 EDA';
   $('plugin-path-login').hidden = loggedOut;
-  document.querySelector('.toolbar').hidden = needsSetup || !['shop', 'eda'].includes(s.page);
+  document.querySelector('.toolbar').hidden = !['shop', 'eda'].includes(s.page);
   $('plugin-path').hidden = s.page !== 'eda';
   $('queue').replaceChildren();
   if(s.recovery){const banner=document.createElement('div');banner.className='recovery-banner';banner.append(text('span','上次导出异常中断，清单已恢复。重试会跳过已有完整库。'));$('queue').append(banner);}
@@ -122,6 +125,8 @@ for (const id of ['plugin-path','plugin-path-local','plugin-path-login']) $(id).
 $('clear').addEventListener('click', () => { $('clear-message').textContent = '确定清空清单中的 ' + state.queue.length + ' 个元件吗？'; $('clear-dialog').showModal(); });
 $('clear-cancel').addEventListener('click', () => $('clear-dialog').close());
 $('clear-confirm').addEventListener('click', () => { $('clear-dialog').close(); void call('clear'); });
+for(const [id,accepted] of [['navigation-cancel',false],['navigation-confirm',true]])$(id).addEventListener('click',()=>call('navigation-confirm',{id:state.navigationConfirmation?.id,accepted}));
+$('navigation-dialog').addEventListener('cancel',event=>{event.preventDefault();void call('navigation-confirm',{id:state.navigationConfirmation?.id,accepted:false});});
 $('url').addEventListener('focus', () => $('url').select());
 $('url').addEventListener('blur', () => { $('url').value = state?.navigation?.url || ''; });
 $('url').addEventListener('keydown', e => {

@@ -2,6 +2,8 @@ const { app, BrowserWindow, WebContentsView, ipcMain, dialog, shell, clipboard }
 const path = require('node:path'); const fs = require('node:fs/promises'); const { randomUUID } = require('node:crypto');
 const { Store, isShop } = require('./store.cjs'); const { Bridge, DISCOVERY_PORT } = require('./bridge.cjs');
 const { attachDiscovery } = require('./discovery-session.cjs');
+const {navigationController}=require('./browser-navigation.cjs');
+const navigationControllers=new WeakMap();let navigationConfirmation;
 const {createJob,cleanupJob,runJob}=require('./export-pipeline.cjs');
 const {preserveArtifacts,hasFailure}=require('./failed-artifacts.cjs');
 const {ExportLog}=require('./export-log.cjs');
@@ -74,23 +76,29 @@ if (smoke) app.setPath('userData', path.join(app.getPath('temp'), 'eda-component
 function log(message) { exportJournal?.add(message); logs.push({ time: new Date().toLocaleTimeString('zh-CN'), message: String(message).slice(0, 4000) }); logs = logs.slice(-100); publish(); }
 function snapshot() { const view = current === 'eda' ? eda : current === 'shop' ? shop : undefined;
   return { ...store.state, settings:paths(store),settingsBusy,converting,conversionProgress, metadata: Object.fromEntries(metadata), bridge: bridge.status(), logs, processing, page: current, root: ROOT, edaLogin, edaLocked,
+    navigationConfirmation:navigationConfirmation?{id:navigationConfirmation.id,provider:navigationConfirmation.provider,action:navigationConfirmation.action}:null,
     navigation: { url: view?.webContents.getURL() || '', available: !!view,
       back: view?.webContents.navigationHistory.canGoBack() || false, forward: view?.webContents.navigationHistory.canGoForward() || false } }; }
 function publish() { if (win && !win.isDestroyed() && store && bridge) {
+  layout();
   win.webContents.send('hub:state', snapshot());
   if (exportProgress && edaCover && !edaCover.webContents.isDestroyed()) edaCover.webContents.send('export:progress', {...exportProgress, requestId:exportJob?.requestId, stopRequested:!!exportJob?.stopRequested, canStop:!!exportJob && !exportJob.finishing});
   if (shop && !shop.webContents.isDestroyed()) shop.webContents.send('shop:queue', store.state.queue.map(x => x.id));
 } }
 function layout() { if (!win || win.isDestroyed()) return; const [w, h] = win.getContentSize();
-  for (const [name, view] of [['shop', shop], ['eda', eda]]) { if (!view) continue; view.setVisible(name === current); view.setBounds({ x: 16, y: 120, width: Math.max(w - 32, 1), height: Math.max(h - 136, 1) }); }
+  const top=(!['setup'].includes(current)&&(edaLogin==='signed-out'||!bridge?.status().connected&&edaLogin!=='checking'))?158:120;
+  for (const [name, view] of [['shop', shop], ['eda', eda]]) { if (!view) continue; view.setVisible(name === current&&!navigationConfirmation); view.setBounds({ x: 16, y: top, width: Math.max(w - 32, 1), height: Math.max(h - top-16, 1) }); }
   if (edaCover) { edaCover.setBounds({ x:16, y:120, width:Math.max(w-32,1), height:Math.max(h-136,1) }); edaCover.setVisible(edaLocked && current === 'eda'); }
   if (resultCover) { resultCover.setBounds({x:0,y:0,width:w,height:h}); resultCover.setVisible(resultDialogOpen); }
 }
-function navigate(view, url, provider) { const u = new URL(url); if (u.protocol !== 'https:' || (provider === 'shop' ? !isShop(u) : !(u.hostname === 'lceda.cn' || u.hostname.endsWith('.lceda.cn')))) throw new Error('此页签仅允许打开相应服务的 HTTPS 页面'); view.webContents.loadURL(u.href).catch(e => log('网页打开失败：' + e.message)); }
+function navigate(view, url, provider) { const u = new URL(url); if (u.protocol !== 'https:' || (provider === 'shop' ? !isShop(u) : !(u.hostname === 'lceda.cn' || u.hostname.endsWith('.lceda.cn')))) throw new Error('此页签仅允许打开相应服务的 HTTPS 页面'); navigationControllers.get(view).perform('navigate',u.href); }
 function browser(preload, provider) {
   const view = new WebContentsView({ webPreferences: { partition: 'persist:component-hub-web', preload,
     nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, backgroundThrottling: false } });
   win.contentView.addChildView(view);
+  navigationControllers.set(view,navigationController(view.webContents,{error:log,blocked:request=>{
+    navigationConfirmation={...request,provider,view};layout();publish();win.webContents.focus();
+  }}));
   view.webContents.setWindowOpenHandler(({ url }) => { try { navigate(view, url, provider); } catch { log('外部链接已阻止；可复制链接到系统浏览器打开'); } return { action: 'deny' }; });
   view.webContents.on('will-navigate', (event, url) => { try { const u = new URL(url); const allowed = u.protocol === 'https:' && (isShop(u) || u.hostname === 'lceda.cn' || u.hostname.endsWith('.lceda.cn'));
     if (!allowed) { event.preventDefault(); log('已阻止外部导航'); } } catch { event.preventDefault(); } });
@@ -238,6 +246,7 @@ app.whenReady().then(async () => {
     try {
       if (edaLocked && !['state','plugin-path'].includes(action)) throw new Error('正在导出，立创 EDA 操作已锁定，请等待完成。');
       if (resultDialogOpen && !['state','plugin-path'].includes(action)) throw new Error('请先确认导出结果。');
+      if(navigationConfirmation&&!['state','plugin-path','navigation-confirm'].includes(action))throw new Error('请先确认是否离开当前网页。');
       if(settingsBusy && !['state','plugin-path'].includes(action)) throw new Error('正在保存设置，请稍候。');
       if(converting && ['settings-save','export'].includes(action))throw new Error('正在转换元件库，请等待完成。');
       switch (action) {
@@ -245,14 +254,13 @@ app.whenReady().then(async () => {
         case 'page': if (!['shop', 'eda', 'queue','settings','setup'].includes(value)) throw new Error('未知页面'); current = value; layout(); if (value === 'queue') for (const item of store.state.queue) if (!item.parameters?.length && !enrichment.has(item.id)) enrichItem(item); break;
         case 'details': { const item = store.state.queue.find(x => x.id === value); if (!item) throw new Error('元件已移出清单'); enrichItem(item, true); break; }
         case 'navigate': navigate(current === 'eda' ? eda : shop, String(value), current === 'eda' ? 'eda' : 'shop'); break;
-        case 'back': { const view = current === 'eda' ? eda : shop; if (view.webContents.navigationHistory.canGoBack()) view.webContents.navigationHistory.goBack(); break; }
-        case 'forward': { const view = current === 'eda' ? eda : shop; if (view.webContents.navigationHistory.canGoForward()) view.webContents.navigationHistory.goForward(); break; }
-        case 'refresh': { const view = current === 'eda' ? eda : shop; view.webContents.reload(); break; }
+        case 'back': case 'forward': case 'refresh': { if(!['shop','eda'].includes(current))throw new Error('请先打开网页页签');navigationControllers.get(current==='eda'?eda:shop).perform(action);break; }
+        case 'navigation-confirm': { if(!navigationConfirmation||value?.id!==navigationConfirmation.id)throw new Error('导航确认已失效');const request=navigationConfirmation;navigationConfirmation=undefined;navigationControllers.get(request.view).confirm(value.id,value.accepted===true);layout();break; }
         case 'capture': shop.webContents.send('shop:capture-request'); break;
         case 'remove': await store.remove(String(value)); break;
         case 'clear': await store.clearQueue(); log('导出清单已清空'); break;
         case 'product': { const item = store.state.queue.find(x => x.id === value); if (!item?.url) throw new Error('此元件暂无商品链接'); navigate(shop, item.url, 'shop'); current = 'shop'; layout(); break; }
-        case 'pair': case 'open-login': current = 'eda'; layout(); log('请登录立创 EDA，并导入 v0.5.6 连接插件，开启外部交互权限。'); break;
+        case 'pair': case 'open-login': { const alreadyOpen=current==='eda';current='eda';layout();if(alreadyOpen||!eda.webContents.getURL())navigate(eda,'https://pro.lceda.cn/editor','eda');eda.webContents.focus();break; }
         case 'pair-manual': clipboard.writeText(bridge.uri); log('连接地址已复制。在立创 EDA 高级菜单选择“手动连接地址”。'); break;
         case 'footprint-source': if(!['easyeda','eda'].includes(value))throw new Error('封装来源无效');store.state[(store.state.exportTarget || 'kicad')+'FootprintSource']=value;await store.persist();break;
         case 'export-target': if(!['kicad','cadence','altium'].includes(value))throw new Error('未知目标 EDA');store.state.exportTarget=value;await store.persist();break;
