@@ -1,0 +1,136 @@
+{
+  "schema": "lcsc-cadence-download/v1",
+  "extensionVersion": "0.5.0",
+  "partId": "C96093",
+  "createdAt": "2026-10-10T14:28:32.929Z",
+  "device": {
+    "id": "C96093",
+    "uuid": "b295dffc24104182a784b51ff69d2656",
+    "libraryUuid": "cbddc6e052e045cd8cf772e6d96beca5",
+    "name": "TMB12A05_C96093",
+    "footprint": {
+      "name": "",
+      "uuid": "461182f8414342edb8234cf58b5944dc",
+      "libraryUuid": "cbddc6e052e045cd8cf772e6d96beca5"
+    },
+    "model3D": {
+      "name": "BUZ-TH_D12.0-H9.5-P7.60",
+      "uuid": "16ab50e14c5b4f2c986c135bdba60e37",
+      "libraryUuid": ""
+    },
+    "raw": {
+      "uuid": "b295dffc24104182a784b51ff69d2656",
+      "libraryUuid": "cbddc6e052e045cd8cf772e6d96beca5",
+      "classification": {
+        "libraryUuid": "cbddc6e052e045cd8cf772e6d96beca5",
+        "libraryType": "3",
+        "primaryClassificationUuid": "3bd865ebd0cf422b8917c6823219f8cc",
+        "secondaryClassificationUuid": "0e00ba8f820246fea2bef5ddf619939e"
+      },
+      "ordinal": 0,
+      "name": "TMB12A05_C96093",
+      "symbolName": "",
+      "symbolUuid": "9b8fa203b9af474e95d52035f51c8427",
+      "symbol": {
+        "name": "",
+        "uuid": "9b8fa203b9af474e95d52035f51c8427",
+        "libraryUuid": "cbddc6e052e045cd8cf772e6d96beca5"
+      },
+      "footprintUuid": "461182f8414342edb8234cf58b5944dc",
+      "footprint": {
+        "name": "",
+        "uuid": "461182f8414342edb8234cf58b5944dc",
+        "libraryUuid": "cbddc6e052e045cd8cf772e6d96beca5"
+      },
+      "model3DName": "BUZ-TH_D12.0-H9.5-P7.60",
+      "model3DUuid": "16ab50e14c5b4f2c986c135bdba60e37",
+      "model3D": {
+        "name": "BUZ-TH_D12.0-H9.5-P7.60",
+        "uuid": "16ab50e14c5b4f2c986c135bdba60e37",
+        "libraryUuid": ""
+      },
+      "imageUuid": "https://alimg.szlcsc.com/upload/public/product/middle/20221231/D9311861122A027CA9512C80E08B1310.jpg",
+      "description": "驱动方式:有源(内含驱动线路);构造类型:电磁式;额定电压:-;频率:2.4kHz;声压(SPL):85dB;",
+      "otherProperty": {
+        "LCSC Part Name": "TMB12A05",
+        "Supplier Part": "C96093",
+        "Manufacturer": "华能",
+        "Manufacturer Part": "TMB12A05",
+        "Supplier Footprint": "插件,D=12mm",
+        "JLCPCB Part Class": "扩展库",
+        "Datasheet": "https://atta.szlcsc.com/upload/public/pdf/source/20241025/8A17FE04D767D19A35A06DEF9A82AB1E.pdf",
+        "Supplier": "LCSC",
+        "Add into BOM": "yes",
+        "Convert to PCB": "yes",
+        "Designator": "BUZZER?",
+        "3D Model": "16ab50e14c5b4f2c986c135bdba60e37",
+        "3D Model Title": "BUZ-TH_D12.0-H9.5-P7.60",
+        "3D Model Transform": "472.44,472.176,0,90,0,0,-0.787,0,-177.165",
+        "Driver Circuitry": "有源(内含驱动线路)",
+        "Technology": "电磁式",
+        "Voltage Rating": "-",
+        "Voltage - Supply": "4V~8V",
+        "Value": "2.4kHz",
+        "Current Consumption": "-",
+        "Sound Pressure Level(SPL)": "85dB",
+        "Diameter(φD)": "12mm",
+        "Length": "-",
+        "Width": "-",
+        "Height": "9.8mm",
+        "Operating Temperature": "-",
+        "Name": "={Value}",
+        "Description": "驱动方式:有源(内含驱动线路);构造类型:电磁式;额定电压:-;频率:2.4kHz;声压(SPL):85dB;",
+        "Symbol": "9b8fa203b9af474e95d52035f51c8427",
+        "Footprint": "461182f8414342edb8234cf58b5944dc"
+      }
+    }
+  },
+  "artifacts": {
+    "device.elibz": {
+      "status": "included"
+    },
+    "footprint.elibz": {
+      "status": "included"
+    },
+    "pcb_with_component.step": {
+      "status": "included"
+    },
+    "pcb_document.epro": {
+      "status": "included"
+    }
+  },
+  "warnings": [
+    "未返回独立封装源码，尝试保留 PCB 文档。"
+  ],
+  "placement": {
+    "documentUuid": "0baae1dffbc4e7a1",
+    "coordinateUnit": "mil",
+    "primitiveId": "488ff9894e3e3640",
+    "footprintXMil": 0,
+    "footprintYMil": 0,
+    "footprintXMm": 0,
+    "footprintYMm": 0,
+    "footprintRotationDeg": 0,
+    "layer": 1,
+    "component": {
+      "libraryUuid": "324536887dbc4abfb69b12fd7ff84768",
+      "uuid": {
+        "name": "TMB12A05_C96093",
+        "source": "",
+        "uuid": "52ff42dedacb7d54"
+      }
+    },
+    "footprint": {
+      "libraryUuid": "324536887dbc4abfb69b12fd7ff84768",
+      "uuid": "77f9bdd0cc801ed4",
+      "name": "BUZ-TH_BD12.0-P7.60-D0.6-FD"
+    },
+    "model3D": {
+      "libraryUuid": "cbddc6e052e045cd8cf772e6d96beca5",
+      "uuid": "16ab50e14c5b4f2c986c135bdba60e37|cbddc6e052e045cd8cf772e6d96beca5",
+      "name": "BUZ-TH_D12.0-H9.5-P7.60"
+    },
+    "designator": "BUZZER1",
+    "supplierId": "C96093"
+  }
+}

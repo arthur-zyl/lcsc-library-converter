@@ -1,0 +1,5 @@
+:root,body{background:transparent;width:100%;height:100%}
+.app-dialog{width:440px;max-height:calc(100vh - 48px)}
+#result-detail{white-space:pre-wrap;overflow-wrap:anywhere;max-height:55vh;overflow:auto}
+
+.app-dialog{top:clamp(28px,12vh,100px);bottom:auto;margin:0 auto}.app-dialog::backdrop{background:#112f491a}

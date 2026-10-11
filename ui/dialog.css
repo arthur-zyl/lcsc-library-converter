@@ -1,0 +1,5 @@
+.app-dialog{width:360px;max-width:90vw;border:1px solid #d3e0e8;border-radius:10px;padding:24px;color:#294353;background:#fff;box-shadow:0 16px 50px #102e4b26}
+.app-dialog::backdrop{background:#112f4966}
+.app-dialog h2{font-size:17px;margin:0 0 12px}
+.app-dialog p{font-size:13px;line-height:22px;margin:0 0 22px;color:#718894}
+.dialog-actions{display:flex;justify-content:flex-end;gap:10px}

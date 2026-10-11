@@ -1,0 +1,128 @@
+{
+  "schema": "lcsc-cadence-download/v1",
+  "extensionVersion": "0.5.0",
+  "partId": "C5137636",
+  "createdAt": "2026-10-10T14:05:07.975Z",
+  "device": {
+    "id": "C5137636",
+    "uuid": "039b60bb4a0a489bba3cf8bdea023d89",
+    "libraryUuid": "842b7579dd29433ea7b454a491350a08",
+    "name": "FCC0603B104K500CT",
+    "footprint": {
+      "name": "",
+      "uuid": "cc7155d126b54298bcfb5478f8d9f61a",
+      "libraryUuid": "842b7579dd29433ea7b454a491350a08"
+    },
+    "model3D": {
+      "name": "C0603_L1.6-W0.8-H0.8",
+      "uuid": "ac125912035d415993ca9572d50418b1",
+      "libraryUuid": ""
+    },
+    "raw": {
+      "uuid": "039b60bb4a0a489bba3cf8bdea023d89",
+      "libraryUuid": "842b7579dd29433ea7b454a491350a08",
+      "classification": {
+        "libraryUuid": "842b7579dd29433ea7b454a491350a08",
+        "libraryType": "3",
+        "primaryClassificationUuid": "a9ff0ba64ec94e649f38d57af640b5af",
+        "secondaryClassificationUuid": "ee98088c6cf54344b1aa8e68e16a571c"
+      },
+      "ordinal": 0,
+      "name": "FCC0603B104K500CT",
+      "symbolName": "",
+      "symbolUuid": "6cb80073865e42d1bc50d38d8aae41b0",
+      "symbol": {
+        "name": "",
+        "uuid": "6cb80073865e42d1bc50d38d8aae41b0",
+        "libraryUuid": "842b7579dd29433ea7b454a491350a08"
+      },
+      "footprintUuid": "cc7155d126b54298bcfb5478f8d9f61a",
+      "footprint": {
+        "name": "",
+        "uuid": "cc7155d126b54298bcfb5478f8d9f61a",
+        "libraryUuid": "842b7579dd29433ea7b454a491350a08"
+      },
+      "model3DName": "C0603_L1.6-W0.8-H0.8",
+      "model3DUuid": "ac125912035d415993ca9572d50418b1",
+      "model3D": {
+        "name": "C0603_L1.6-W0.8-H0.8",
+        "uuid": "ac125912035d415993ca9572d50418b1",
+        "libraryUuid": ""
+      },
+      "imageUuid": "https://alimg.szlcsc.com/upload/public/product/middle/20230106/D54186307007C279DD29FE209F8629BF.jpg",
+      "description": "容值:100nF;精度:±10%;额定电压:50V;温度系数:X7R;",
+      "otherProperty": {
+        "LCSC Part Name": "100nF ±10% 50V",
+        "Supplier Part": "C5137636",
+        "Manufacturer": "FOJAN(富捷)",
+        "Manufacturer Part": "FCC0603B104K500CT",
+        "Supplier Footprint": "0603",
+        "JLCPCB Part Class": "Extended Part",
+        "Datasheet": "https://atta.szlcsc.com/upload/public/pdf/source/20220818/0EB3B7FB2F5648AC16609637FBA7DABE.pdf",
+        "Supplier": "LCSC",
+        "Add into BOM": "yes",
+        "Convert to PCB": "yes",
+        "Designator": "C?",
+        "3D Model": "ac125912035d415993ca9572d50418b1",
+        "3D Model Title": "C0603_L1.6-W0.8-H0.8",
+        "3D Model Transform": "62.992,31.496,0,0,0,0,0,0,0",
+        "Value": "100nF",
+        "Tolerance": "±10%",
+        "Voltage Rating": "50V",
+        "Temperature Coefficient": "X7R",
+        "Name": "={Value}",
+        "Description": "容值:100nF;精度:±10%;额定电压:50V;温度系数:X7R;",
+        "Symbol": "6cb80073865e42d1bc50d38d8aae41b0",
+        "Footprint": "cc7155d126b54298bcfb5478f8d9f61a"
+      }
+    }
+  },
+  "artifacts": {
+    "device.elibz": {
+      "status": "included"
+    },
+    "footprint.elibz": {
+      "status": "included"
+    },
+    "pcb_with_component.step": {
+      "status": "included"
+    },
+    "pcb_document.epro": {
+      "status": "included"
+    }
+  },
+  "warnings": [
+    "未返回独立封装源码，尝试保留 PCB 文档。"
+  ],
+  "placement": {
+    "documentUuid": "b6cc2c34442ce830",
+    "coordinateUnit": "mil",
+    "primitiveId": "e187879f3f1d1e96",
+    "footprintXMil": 0,
+    "footprintYMil": 0,
+    "footprintXMm": 0,
+    "footprintYMm": 0,
+    "footprintRotationDeg": 0,
+    "layer": 1,
+    "component": {
+      "libraryUuid": "324536887dbc4abfb69b12fd7ff84768",
+      "uuid": {
+        "name": "FCC0603B104K500CT",
+        "source": "",
+        "uuid": "07709afbdc6147a8"
+      }
+    },
+    "footprint": {
+      "libraryUuid": "324536887dbc4abfb69b12fd7ff84768",
+      "uuid": "330811e9c95f87a4",
+      "name": "C0603"
+    },
+    "model3D": {
+      "libraryUuid": "842b7579dd29433ea7b454a491350a08",
+      "uuid": "ac125912035d415993ca9572d50418b1|842b7579dd29433ea7b454a491350a08",
+      "name": "C0603_L1.6-W0.8-H0.8"
+    },
+    "designator": "C1",
+    "supplierId": "C5137636"
+  }
+}

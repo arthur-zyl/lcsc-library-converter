@@ -1,0 +1,25 @@
+* text=auto
+*.js text eol=lf
+*.cjs text eol=lf
+*.mjs text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.py text eol=lf
+*.tcl text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.gitattributes text eol=lf
+*.gitignore text eol=lf
+*.vbs text eol=crlf
+*.png binary
+*.jpg binary
+*.zip binary
+*.eext binary
+*.elibz binary
+*.SchLib binary
+*.PcbLib binary
+*.olb binary
+*.step binary
+*.stp binary

@@ -1,0 +1,28 @@
+{
+    "name": "eda-component-hub",
+    "version": "0.1.0",
+    "private": true,
+    "description": "EDA Component Hub — 元件选料、资源提取与多 EDA 转换桌面工具",
+    "main": "src/main.cjs",
+    "scripts": {
+        "start": "electron .",
+        "test": "node --test tests/core.test.cjs tests/workflow.test.mjs tests/kicad.test.cjs tests/color.test.cjs tests/cadence.test.cjs tests/model-info.test.cjs tests/export-pipeline.test.cjs tests/local-footprints.test.cjs tests/export-log.test.cjs tests/existing-library.test.cjs tests/altium.test.cjs tests/setup.test.cjs",
+        "test:setup": "electron tests/setup-ui.cjs",
+        "test:shop": "electron tests/shop-dom.cjs",
+        "test:metadata": "electron . --metadata-smoke",
+        "test:discovery": "electron tests/discovery-dom.cjs",
+        "build:extension": "node scripts/build-extension.mjs",
+        "typecheck:extension": "tsc -p extensions/easyeda/tsconfig.json --noEmit --incremental false",
+        "smoke": "electron . --smoke"
+    },
+    "dependencies": {
+        "ws": "8.22.0",
+        "jszip": "3.10.1"
+    },
+    "devDependencies": {
+        "electron": "44.7.0",
+        "esbuild": "0.24.2",
+        "typescript": "5.7.3",
+        "@jlceda/pro-api-types": "0.4.25"
+    }
+}

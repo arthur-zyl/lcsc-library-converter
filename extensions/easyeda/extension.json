@@ -1,0 +1,71 @@
+{
+  "name": "lcsc-cadence-downloader",
+  "uuid": "675fb692f8a249f7b5e20c5d8d347b8d",
+  "displayName": "EDA Component Hub · 立创 EDA 连接插件",
+  "description": "连接 Electron 元件资源库，接受软件导出任务。",
+  "version": "0.5.6",
+  "publisher": "Local Development",
+  "engines": {
+    "eda": ">=3.2.0 <5.0.0"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "extension-store",
+    "url": ""
+  },
+  "categories": "Other",
+  "keywords": [
+    "Tool"
+  ],
+  "images": {
+    "logo": "./images/logo.png"
+  },
+  "homepage": "",
+  "bugs": "",
+  "activationEvents": {
+    "onStartupFinished": true
+  },
+  "entry": "./dist/index",
+  "dependentExtensions": {},
+  "headerMenus": {
+    "home": [
+      {
+        "id": "component-hub-home",
+        "title": "元件资源库",
+        "menuItems": [
+          {
+            "id": "connectDesktop",
+            "title": "连接软件",
+            "registerFn": "connectDesktop"
+          }
+        ]
+      }
+    ],
+    "sch": [
+      {
+        "id": "component-hub-sch",
+        "title": "元件资源库",
+        "menuItems": [
+          {
+            "id": "connectDesktop",
+            "title": "连接软件",
+            "registerFn": "connectDesktop"
+          }
+        ]
+      }
+    ],
+    "pcb": [
+      {
+        "id": "component-hub-pcb",
+        "title": "元件资源库",
+        "menuItems": [
+          {
+            "id": "connectDesktop",
+            "title": "连接软件",
+            "registerFn": "connectDesktop"
+          }
+        ]
+      }
+    ]
+  }
+}
