@@ -6,7 +6,7 @@
     "main": "src/main.cjs",
     "scripts": {
         "start": "electron .",
-        "test": "node --test tests/core.test.cjs tests/workflow.test.mjs tests/kicad.test.cjs tests/color.test.cjs tests/cadence.test.cjs tests/model-info.test.cjs tests/export-pipeline.test.cjs tests/local-footprints.test.cjs tests/export-log.test.cjs tests/existing-library.test.cjs tests/altium.test.cjs tests/setup.test.cjs tests/preflight.test.cjs tests/export-results.test.cjs tests/recovery.test.cjs tests/export-batches.test.cjs tests/compatibility.test.cjs tests/component-fields.test.cjs",
+        "test": "node --test tests/core.test.cjs tests/workflow.test.mjs tests/kicad.test.cjs tests/color.test.cjs tests/cadence.test.cjs tests/cadence-custom-pads.test.cjs tests/model-info.test.cjs tests/export-pipeline.test.cjs tests/local-footprints.test.cjs tests/export-log.test.cjs tests/existing-library.test.cjs tests/altium.test.cjs tests/setup.test.cjs tests/preflight.test.cjs tests/export-results.test.cjs tests/recovery.test.cjs tests/export-batches.test.cjs tests/compatibility.test.cjs tests/component-fields.test.cjs",
         "test:setup": "electron tests/setup-ui.cjs",
         "test:shop": "electron tests/shop-dom.cjs",
         "test:metadata": "electron . --metadata-smoke",

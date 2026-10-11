@@ -26,7 +26,7 @@ async function existingLibrary(target,ids,settings){
     const library=libraryName(settings.cadenceLibraryName || 'LCSC'),symbolExists=state.library===library && await exists(path.join(output,library+'.olb'));
     for(const id of ids){const record=state.entries.find(e=>e.id===id);if(!record)continue;
       if(!record.footprintEntry || path.basename(record.footprintEntry)!==record.footprintEntry)throw new Error('封装索引名称无效');
-      const required=[record.footprintEntry+'.dra',record.footprintEntry+'.psm',...(record.files || []).filter(f=>f.endsWith('.pad'))];
+      const required=[record.footprintEntry+'.dra',record.footprintEntry+'.psm',...(record.files || []).filter(f=>/\.(pad|ssm)$/.test(f))];
       if(required.some(f=>path.basename(f)!==f))throw new Error('封装索引文件名无效');
       const owner=state.entries.find(e=>e.footprintEntry===record.footprintEntry);
       const modelName=owner?.modelName || record.footprintEntry+'.step';

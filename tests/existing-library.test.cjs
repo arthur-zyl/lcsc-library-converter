@@ -27,10 +27,11 @@ test('Cadence existing detection uses the shared footprint model and retries pla
 test('Cadence requires indexed component files and respects configured OLB name',async()=>{
   const d=await fs.mkdtemp(path.join(os.tmpdir(),'hub-existing-'));
   try {
-    await fs.writeFile(path.join(d,'hub_cadence.json'),JSON.stringify({schema:'eda-component-hub/cadence-v1',library:'Parts',entries:[{id:'C1',entry:'Chip',footprintEntry:'Pkg',files:['Pkg.dra','Pkg.psm','Pkg.step','pin.pad']}]}));
-    for(const f of ['Parts.olb','Pkg.dra','Pkg.psm','Pkg.step','pin.pad'])await fs.writeFile(path.join(d,f),'existing');
+    await fs.writeFile(path.join(d,'hub_cadence.json'),JSON.stringify({schema:'eda-component-hub/cadence-v1',library:'Parts',entries:[{id:'C1',entry:'Chip',footprintEntry:'Pkg',files:['Pkg.dra','Pkg.psm','Pkg.step','pin.pad','custom.ssm']}]}));
+    for(const f of ['Parts.olb','Pkg.dra','Pkg.psm','Pkg.step','pin.pad','custom.ssm'])await fs.writeFile(path.join(d,f),'existing');
     const settings={cadenceDir:d,cadenceLibraryName:'Parts'};
     assert.equal((await existingLibrary('cadence',['C1'],settings)).get('C1').complete,true);
+    await fs.unlink(path.join(d,'custom.ssm'));assert.equal((await existingLibrary('cadence',['C1'],settings)).get('C1').footprintExists,false);await fs.writeFile(path.join(d,'custom.ssm'),'existing');
     await fs.unlink(path.join(d,'pin.pad'));const partial=(await existingLibrary('cadence',['C1'],settings)).get('C1');assert.equal(partial.symbolExists,true);assert.equal(partial.footprintExists,false);
     assert.equal((await existingLibrary('cadence',['C1'],{...settings,cadenceLibraryName:'Other'})).get('C1').symbolExists,false);
   }finally{await fs.rm(d,{recursive:true,force:true});}

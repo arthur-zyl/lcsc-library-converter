@@ -14,6 +14,7 @@ async function reuseCadence(part,entry,work,root,matched,run,modelFile=entry+'.s
     'close(f)'];
   await execute('inspect',buildScript(inspect).replace('"build.ok"','"inspect.ok"'));
   const pads=(await fs.readFile(path.join(work,'local-pads.tsv'),'utf8')).trim().split(/\r?\n/).map(line=>{const r=line.split('\t');return {number:r[0],x:Number(r[1]),y:Number(r[2]),angle:Number(r[3]),kind:r[4],width:Number(r[5]),height:Number(r[6]),drill:Number(r[7]),plated:/^"?PLATED"?$/.test(r[8]),padName:r[9],through:Number(r[7])>0,side:'TOP'};});
+  if(pads.some(p=>p.kind==='SHAPE'))throw new Error('本地封装含外部自定义形状依赖，改用立创原始轮廓重新生成可移动的形状符号。');
   const source=part.footprintRows.filter(r=>r[0]==='PAD').map(r=>({number:String(r[5]??''),x:Number(r[6])*0.0254,y:Number(r[7])*0.0254}));
   const placement=modelPlacement(source,pads),modelName=modelFile;await fs.copyFile(part.model,path.join(work,modelName));
   const commands=['axlDBChangeDesignUnits("millimeters" 4)','axlSetVariable("steppath" list("."))',`unless(axlStepSet('primary nil ${q(modelName)} '(offset_x ${placement.x} offset_y ${placement.y} offset_z 0 rotation_x 0 rotation_y 0 rotation_z ${placement.angle} color 0)) error("STEP binding failed"))`,'unless(axlSaveDesign(?noMru t ?noConfirm t) error("DRA save failed"))','unless(axlCompileSymbol(?silent t ?silentOnOverwrite t) error("PSM compile failed"))'];
