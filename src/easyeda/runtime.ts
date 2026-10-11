@@ -70,7 +70,20 @@ async function ensureDocument(uuid: string): Promise<void> {
 }
 async function lookup(id: string, interactive = true): Promise<Device> {
   record('lookup', id);
-  let items = await eda.lib_Device.getByLcscIds([id], undefined, true);
+  // Resolve the current system library explicitly. The C-number API's implicit
+  // default can return an older library (observed in Pro 4.1.71).
+  const libraryUuid = await eda.lib_LibrariesList.getSystemLibraryUuid();
+  if (!libraryUuid) throw new Error('无法获取立创 EDA 系统库来源，请确认登录后重试。');
+  record('lookup-library', JSON.stringify({ partId: id, libraryUuid }));
+  let items: Awaited<ReturnType<typeof eda.lib_Device.getByLcscIds>> = [];
+  try { items = await eda.lib_Device.getByLcscIds([id], libraryUuid, true); }
+  catch (error) { record('lcsc-lookup-failed', `${id}: ${errorText(error)}`); }
+  const inLibrary = (item: typeof items[number]) => {
+    if (item.libraryUuid === libraryUuid) return true;
+    record('lookup-source-rejected', JSON.stringify({ partId: id, uuid: item.uuid, libraryUuid: item.libraryUuid, expectedLibraryUuid: libraryUuid }));
+    return false;
+  };
+  items = items.filter(inLibrary);
   const enrich = async (item: typeof items[number]) => {
     if (item.footprint?.uuid || item.footprintUuid) return item;
     try {
@@ -84,9 +97,14 @@ async function lookup(id: string, interactive = true): Promise<Device> {
   items = await Promise.all(items.map(enrich));
   if (!items.some(x => x.footprint?.uuid || x.footprintUuid)) {
     try {
-      const alternatives = await eda.lib_Device.search(id, undefined, undefined, undefined, 50, 1);
-      const exact = alternatives.filter(x => x.otherProperty?.['Supplier Part'] === id
-        || x.name.toUpperCase().endsWith(`_${id}`));
+      const alternatives = await eda.lib_Device.search(id, libraryUuid, undefined, undefined, 50, 1);
+      const exact = alternatives.filter(inLibrary).filter(x => {
+        // New editor builds expose supplierId directly; older type packages
+        // only declare the Supplier Part property.
+        const supplierId = String((x as typeof x & { supplierId?: string }).supplierId
+          ?? x.otherProperty?.['Supplier Part'] ?? '').trim().toUpperCase();
+        return supplierId ? supplierId === id : x.name.toUpperCase().endsWith(`_${id}`);
+      });
       const enriched = await Promise.all(exact.map(enrich));
       const seen = new Set(items.map(x => `${x.libraryUuid}/${x.uuid}`));
       for (const x of enriched) if (!seen.has(`${x.libraryUuid}/${x.uuid}`)) {
@@ -96,6 +114,9 @@ async function lookup(id: string, interactive = true): Promise<Device> {
   }
   const withFootprint = items.filter(x => x.footprint?.uuid || x.footprintUuid);
   if (withFootprint.length) items = withFootprint;
+  record('lookup-candidates', JSON.stringify({ partId: id, libraryUuid, candidates: items.map(x => ({
+    uuid: x.uuid, libraryUuid: x.libraryUuid, name: x.name,
+    footprintUuid: x.footprint?.uuid ?? x.footprintUuid })) }));
   if (!items.length) throw new Error('系统库未匹配到器件。若器件来自扩展库，请在底部器件库选中该行，再用“下载选中库器件”。');
   let item = items[0];
   if (items.length > 1) {
@@ -112,6 +133,8 @@ async function lookup(id: string, interactive = true): Promise<Device> {
     ? { uuid: item.footprintUuid, libraryUuid: item.libraryUuid, name: item.footprintName } : undefined);
   const model3D = item.model3D ?? (item.model3DUuid
     ? { uuid: item.model3DUuid, libraryUuid: item.libraryUuid, name: item.model3DName } : undefined);
+  record('lookup-selected', JSON.stringify({ partId: id, uuid: item.uuid, libraryUuid: item.libraryUuid,
+    name: item.name, footprint, model3D }));
   return { id, uuid: item.uuid, libraryUuid: item.libraryUuid, name: item.name, footprint, model3D, raw: item };
 }
 async function selectedDevice(id: string): Promise<Device> {

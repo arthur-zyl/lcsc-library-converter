@@ -122,17 +122,30 @@ function setup(options = {}) {
     sch_Document: { save: async () => { state.documentSaves.push('sch'); return !options.saveFailure; } },
     pnl_Document: { save: async () => { state.documentSaves.push('panel'); return !options.saveFailure; } },
     sys_ToastMessage: { showMessage: () => { state.messages.push('toast'); } },
+    lib_LibrariesList: { getSystemLibraryUuid: async () => options.missingSystemLibrary ? undefined : 'library1' },
     lib_Device: {
-      getByLcscIds: async ids => {
+      getByLcscIds: async (ids, libraryUuid, allowMultiMatch) => {
+        assert.equal(libraryUuid, 'library1'); assert.equal(allowMultiMatch, true);
         state.currentId = ids[0];
+        if (options.lcscApiError) throw new Error('C-number lookup unavailable');
+        if (options.wrongSource) return [{ ...searchItem, uuid: 'old-device', libraryUuid: 'old-library' }];
+        if (options.multipleMatches) return [searchItem, { ...searchItem, uuid: 'second-device' }];
         return options.noMatch || options.failId === ids[0] ? [] : [searchItem];
       },
       get: async () => ({ ...searchItem, property: { supplierId: 'C48997937' }, association: {
         footprint: options.fullDetailsFootprint ? { uuid: 'footprint1', libraryUuid: 'footprintLibrary' } : searchItem.footprint } }),
-      search: async () => options.alternateFootprint ? [
+      search: async (_id, libraryUuid) => {
+        assert.equal(libraryUuid, 'library1');
+        if (options.wrongSource || options.lcscApiError) return [
+          { ...searchItem, uuid: 'old-device', libraryUuid: 'old-library', supplierId: state.currentId },
+          { ...searchItem, name: 'exact-part', supplierId: options.wrongSearchId ? 'C123' : state.currentId },
+          { ...searchItem, uuid: 'unrelated', supplierId: 'C123', name: `part_${state.currentId}` },
+        ];
+        return options.alternateFootprint ? [
         { ...searchItem, uuid: 'alternative', name: `part_${state.currentId}`, footprint: { uuid: 'footprint1', libraryUuid: 'footprintLibrary' } },
         { ...searchItem, uuid: 'unrelated', name: 'unrelated', footprint: { uuid: 'footprint1', libraryUuid: 'footprintLibrary' } },
-      ] : [],
+      ] : [];
+      },
     },
     lib_SelectControl: { getSelectedLibraryRowInfo: async () => ({ libraryType: '3', uuid: 'device1', libraryUuid: 'library1' }) },
     sys_FileManager: {
@@ -157,6 +170,7 @@ function setup(options = {}) {
         ? { ...component, getState_PrimitiveId: () => 'replacement' } : component),
       create: async (_device, layer, x, y, rotation) => {
         assert.deepEqual([layer, x, y, rotation], [1, 0, 0, 0]);
+        state.placedDevice = { ..._device };
         state.creates++; state.components.push('p1'); return component;
       },
     },
@@ -223,6 +237,38 @@ test('full workflow bundles files, preserves library identity and enables EDA he
 test('selected-library route supports extended-library selection', async () => {
   const s = setup(); await s.run('downloadSelectedAll');
   assert.equal((await archive(s.state)).manifest.device.uuid, 'device1');
+});
+
+test('C-number lookup rejects another library and places the exact system search result', async () => {
+  const s = setup({ id: 'C2915308', wrongSource: true }); await s.run('downloadAll');
+  const { manifest } = await archive(s.state);
+  assert.equal(manifest.device.uuid, 'device1');
+  assert.equal(manifest.device.libraryUuid, 'library1');
+  assert.deepEqual(s.state.placedDevice, { uuid: 'device1', libraryUuid: 'library1' });
+});
+
+test('scoped exact search recovers when C-number API throws', async () => {
+  const s = setup({ lcscApiError: true }); await s.run('downloadAll');
+  assert.equal((await archive(s.state)).manifest.device.uuid, 'device1');
+});
+
+test('wrong supplier number and wrong library never silently fall back to another device', async () => {
+  const s = setup({ wrongSource: true, wrongSearchId: true }); await s.run('downloadAll');
+  assert.equal(s.state.creates, 0); assert.equal(s.state.saved.length, 0);
+  assert.match(s.state.messages.join(' '), /未匹配/);
+});
+
+test('unknown system library refuses implicit defaults', async () => {
+  const s = setup({ missingSystemLibrary: true }); await s.run('downloadAll');
+  assert.equal(s.state.creates, 0); assert.match(s.state.messages.join(' '), /无法获取.*系统库/);
+});
+
+test('ambiguous system-library matches do not auto-place during batch export', async () => {
+  const s = setup({ multipleMatches: true }); await s.run('batchDownload');
+  const zip = await JSZip.loadAsync(await s.state.saved[0].blob.arrayBuffer());
+  const report = JSON.parse(await zip.file('batch_manifest.json').async('string'));
+  assert.equal(s.state.creates, 0); assert.equal(report.results[0].status, 'failed');
+  assert.match(report.results[0].message, /匹配多个/);
 });
 test('occupied PCB is refused before mutation', async () => {
   const s = setup({ existing: true }); await s.run('downloadAll');
