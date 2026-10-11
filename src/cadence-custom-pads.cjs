@@ -67,7 +67,8 @@ function shapeCommands(shape){return [
 ];}
 function checkShapeAudit(text,pads){
   const actual=new Map();for(const line of text.trim().split(/\r?\n/).filter(Boolean)){const [name,x,y]=line.split('\t');if(!actual.has(name))actual.set(name,[]);actual.get(name).push([Number(x),Number(y)]);}
-  for(const pad of pads.filter(p=>p.shapeName)){
+  const layerShapes=pads.flatMap(p=>[...(p.copperLayers||[]),...(p.maskLayers||[]),...(p.pasteLayers||[])].filter(g=>g.shapeName&&!g.suppressed).map(g=>({...g,number:p.number,padName:p.padName+'_'+g.layer})));
+  for(const pad of [...pads.filter(p=>p.shapeName),...layerShapes]){
     const points=actual.get(pad.padName);if(!points?.length||points.some(p=>p.some(v=>!Number.isFinite(v))))throw new Error('自定义焊盘轮廓回读失败：'+pad.number);
     // Native coordinates have 0.0001 mm resolution. Check all vertices in both
     // directions and area so wrong handedness/translation/outline cannot pass.

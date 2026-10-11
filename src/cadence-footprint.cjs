@@ -34,15 +34,40 @@ function footprint(part,entry,modelName) {
     const explicitMask=fills.some(f=>f.layerId===(side==='TOP'?5:6) && overlaps(f));
     const explicitPaste=fills.some(f=>f.layerId===(side==='TOP'?7:8) && overlaps(f));
     const data={kind,width,height,...(shapeName?{shapeName,points}:{}),drill,plated,through,side,...(explicitMask?{explicitMask:true}:{}),...(explicitPaste?{explicitPaste:true}:{})},padName='hub_'+createHash('sha256').update(JSON.stringify(data)).digest('hex').slice(0,20);
-    padDefs.set(padName,data);pads.push({number,x:mm(r[6]),y:mm(r[7]),angle:n(r[8]||0),padName,...data});
+    pads.push({number,x:mm(r[6]),y:mm(r[7]),angle:n(r[8]||0),padName,...data,sourceLayer:r[4]});
   }
   if(!pads.length)throw new Error('封装没有焊盘');
+  // EasyEDA can express one pin using a multilayer drilled pad plus a larger
+  // surface pad at the same anchor. Allegro requires one pin and one padstack.
+  const groups=new Map();
+  for(const p of pads.filter(p=>p.number)){if(!groups.has(p.number))groups.set(p.number,[]);groups.get(p.number).push(p);}
+  for(const [number,group] of groups)if(group.length>1){
+    const first=group[0],sameAngle=(a,b)=>Math.abs(((a-b+540)%360+360)%360-180)<0.0001;
+    if(group.some(p=>Math.abs(p.x-first.x)>0.0001||Math.abs(p.y-first.y)>0.0001||!sameAngle(p.angle,first.angle)))throw new Error(`重复焊盘编号 ${number} 的位置或角度不同，无法合并为一个 Allegro 引脚。`);
+    if(new Set(group.map(p=>p.sourceLayer)).size!==group.length)throw new Error(`重复焊盘编号 ${number} 存在同层图形，暂无法无损合并。`);
+    const through=group.find(p=>p.through),figures=new Map();
+    if(through)for(const layer of ['TOP','DEFAULT INTERNAL','BOTTOM'])figures.set(layer,through);
+    for(const p of group.filter(p=>!p.through))figures.set(p.side,p);
+    const descriptor=p=>({kind:p.kind,width:p.width,height:p.height,...(p.shapeName?{shapeName:p.shapeName,points:p.points}:{})});
+    const primary=figures.get('TOP')||figures.get('BOTTOM'),side=figures.has('TOP')?'TOP':'BOTTOM';
+    const data={...descriptor(primary),drill:through?.drill||0,plated:through?.plated||false,through:!!through,side,
+      copperLayers:[...figures].map(([layer,p])=>({layer,...descriptor(p)})),
+      maskLayers:[...figures].filter(([layer])=>layer!=='DEFAULT INTERNAL').map(([layer,p])=>({layer:'SOLDERMASK_'+layer,...descriptor(p),suppressed:!!p.explicitMask})),
+      pasteLayers:group.filter(p=>!p.through).map(p=>({layer:'PASTEMASK_'+p.side,...descriptor(p),suppressed:!!p.explicitPaste}))};
+    if(through&&through.plated&&[...figures.values()].some(p=>through.drill>=Math.min(p.width,p.height)))throw new Error(`合并焊盘 ${number} 的钻孔大于铜焊盘。`);
+    const merged={number,x:first.x,y:first.y,angle:first.angle,...data,padName:'hub_'+createHash('sha256').update(JSON.stringify(data)).digest('hex').slice(0,20)};
+    const index=pads.indexOf(first);pads.splice(index,1,merged);
+    for(const p of group.slice(1))pads.splice(pads.indexOf(p),1);
+    warnings.push(`焊盘 ${number} 的 ${group.length} 个同心跨层图形已合并为一个引脚，保留各层铜形状及钻孔。`);
+  }
+  for(const p of pads){const {number,x,y,angle,padName,sourceLayer,...data}=p;padDefs.set(padName,data);}
   const commands=['axlDBChangeDesignUnits("millimeters" 4)','axlDBChangeDesignExtents(list(-1000:-1000 1000:1000))','axlSetVariable("padpath" list("."))','axlSetVariable("psmpath" list("."))','axlSetVariable("steppath" list("."))'];
   for(const [name,p] of padDefs) {
-    const make=(layer,w=p.width,h=p.height)=>`make_axlPadStackPad(?layer ${q(layer)} ?type 'REGULAR ?figure ${p.shapeName?q(p.shapeName):"'"+p.kind} ?figureSize ${xy(w,h)})`;
+    const make=(layer,g=p)=>`make_axlPadStackPad(?layer ${q(layer)} ?type 'REGULAR ?figure ${g.shapeName?q(g.shapeName):"'"+g.kind} ?figureSize ${xy(g.width,g.height)})`;
     const copper=p.through?['TOP','DEFAULT INTERNAL','BOTTOM']:[p.side];
     const mask=p.through?['SOLDERMASK_TOP','SOLDERMASK_BOTTOM']:p.explicitMask?[]:['SOLDERMASK_'+p.side];
-    const figures=[...copper.map(l=>make(l)),...mask.map(l=>make(l))];if(!p.through && !p.explicitPaste)figures.push(make('PASTEMASK_'+p.side));
+    const figures=p.copperLayers?[...p.copperLayers.map(g=>make(g.layer,g)),...p.maskLayers.filter(g=>!g.suppressed).map(g=>make(g.layer,g)),...p.pasteLayers.filter(g=>!g.suppressed).map(g=>make(g.layer,g))]:[...copper.map(l=>make(l)),...mask.map(l=>make(l))];if(!p.copperLayers&&!p.through && !p.explicitPaste)figures.push(make('PASTEMASK_'+p.side));
+    if(p.copperLayers)for(const g of [...p.maskLayers,...p.pasteLayers].filter(g=>g.suppressed))figures.push(`make_axlPadStackPad(?layer ${q(g.layer)} ?type 'REGULAR ?figure 'NULL ?figureSize 0:0)`);
     if(!p.through)for(const [explicit,layer] of [[p.explicitPaste,'PASTEMASK_'+p.side],[p.explicitMask,'SOLDERMASK_'+p.side]])if(explicit)figures.push(`make_axlPadStackPad(?layer ${q(layer)} ?type 'REGULAR ?figure 'NULL ?figureSize 0:0)`);
     const drill=p.through?`make_axlPadStackDrill(?holeType 'CIRCLE_DRILL ?drillDiameter ${p.drill} ?plating '${p.plated?'PLATED':'NON_PLATED'} ?figure 'CIRCLE ?figureSize ${xy(p.drill,p.drill)})`:'nil';
     commands.push(`unless(axlDBCreatePadStack(${q(name)} ${drill} list(${figures.join(' ')}) t) error("Padstack creation failed"))`,`unless(axlPadstackToDisk(${q(name)}) error("Padstack save failed"))`);
@@ -100,6 +125,12 @@ function auditScript(pads,modelName,fills=[]){
       `foreach(seg axlPathGetPathSegs(car(a->figure)) fprintf(g "%s\\t%f\\t%f\\n" ${q(expected.padName)} xCoord(seg->_endPoint) yCoord(seg->_endPoint)))`);}
     if(expected.explicitPaste && !expected.through)commands.push(`hubMask=axlDBGetPad(p ${q('PIN/PASTEMASK_'+expected.side)} "REGULAR") when(hubMask && hubMask->figureName!="NULL" error("Duplicate default paste opening"))`);
     if(expected.explicitMask && !expected.through)commands.push(`hubMask=axlDBGetPad(p ${q('PIN/SOLDERMASK_'+expected.side)} "REGULAR") when(hubMask && hubMask->figureName!="NULL" error("Duplicate default solder opening"))`);
+    for(const layerPad of [...(expected.copperLayers||[]),...(expected.maskLayers||[]),...(expected.pasteLayers||[])]){
+      commands.push(`hubLayerPad=axlDBGetPad(d ${layerPad.layer==='DEFAULT INTERNAL'?"'internal":q(/^(SOLDER|PASTE)MASK_/.test(layerPad.layer)?'PIN/'+layerPad.layer:layerPad.layer)} "REGULAR")`);
+      if(layerPad.suppressed){commands.push('when(hubLayerPad && hubLayerPad->figureName!="NULL" error("Merged pad unexpected mask opening"))');continue;}
+      commands.push(`unless(hubLayerPad && hubLayerPad->figureName==${q(layerPad.kind)} && abs(difference(xCoord(cadr(hubLayerPad->bBox))-xCoord(car(hubLayerPad->bBox)) ${layerPad.width}))<0.0002 && abs(difference(yCoord(cadr(hubLayerPad->bBox))-yCoord(car(hubLayerPad->bBox)) ${layerPad.height}))<0.0002 error("Merged pad layer geometry mismatch: ${layerPad.layer}"))`);
+      if(layerPad.shapeName){const key=expected.padName+'_'+layerPad.layer;commands.push(`unless(upperCase(hubLayerPad->name)==${q(layerPad.shapeName.toUpperCase())} error("Merged custom shape binding mismatch"))`,`foreach(seg axlPathGetPathSegs(car(hubLayerPad->figure)) fprintf(g "%s\\t%f\\t%f\\n" ${q(key)} xCoord(seg->_endPoint) yCoord(seg->_endPoint)))`);}
+    }
   }
   commands.push('s=axlStepGet(nil \'primary nil)',`unless(s && s->step_name == ${q(modelName)} error("STEP mapping mismatch"))`,`unless(axlDMFindFile("ALLEGRO_STEP" ${q(modelName)} "r") error("Relative STEP cannot be resolved"))`,'fprintf(f "STEP\\t%s\\t%f\\t%f\\t%f\\t%f\\t%f\\t%f\\n" s->step_name s->offset_x s->offset_y s->offset_z s->rotation_x s->rotation_y s->rotation_z)','close(f)','close(g)');
   return buildScript(commands).replace('"build.ok"','"audit.ok"');

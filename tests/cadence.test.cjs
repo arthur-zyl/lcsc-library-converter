@@ -99,6 +99,45 @@ test('Cadence uses MPN, physical pin identifiers, and original unit geometry',as
 test('Cadence copper dimensions and circular plated drills are source based',async()=>{
   for(const id of ['C658109','C5137636','C96093']){const p=await readComponent(fixture(id)),fp=footprint(p,p.footprintTitle,'m.step');assert.equal(fp.pads.length,id==='C658109'?20:2);assert.ok(fp.commands.some(s=>s.includes('axlStepSet')));if(id==='C96093')assert.ok(fp.pads.every(p=>p.through&&p.plated&&p.drill>0));else assert.ok(fp.pads.every(p=>p.drill===0));}
 });
+async function stackedSystemPart(){
+  const part=JSON.parse(await fs.readFile(path.join(__dirname,'fixtures/cadence/C2915308-system-part.json'),'utf8'));
+  // The native regression checks padstack geometry and relative model binding;
+  // reuse a small STEP fixture. The original C2915308 model is tested separately.
+  part.model=path.join(fixture('C5137636'),'C5137636_mount_z0.step');return part;
+}
+test('C2915308 co-located surface and multilayer pads become one pin with distinct layer figures',async()=>{
+  const part=await stackedSystemPart(),fp=footprint(part,'Nut','Nut.step');
+  assert.equal(fp.pads.length,1);assert.equal(fp.padNames.length,1);
+  const p=fp.pads[0];assert.equal(p.number,'1');assert.equal(p.drill,4.199992);assert.equal(p.plated,true);
+  assert.deepEqual(p.copperLayers.map(g=>[g.layer,g.width]),[['TOP',5.999988],['DEFAULT INTERNAL',4.299991],['BOTTOM',4.299991]]);
+  assert.equal(p.pasteLayers[0].width,5.999988);assert.equal(fp.commands.filter(c=>c.includes('axlDBCreatePin')).length,1);
+  assert.match(fp.warnings.join(' '),/合并/);
+  assert.deepEqual(footprint({...part,footprintRows:[...part.footprintRows].reverse()},'Nut','Nut.step').pads,fp.pads);
+});
+test('same numbered pads at different anchors, angles or duplicate layers refuse unsafe merging',async()=>{
+  for(const [field,value,pattern] of [[6,1,/位置或角度/],[8,90,/位置或角度/],[4,1,/同层/]]){
+    const part=await stackedSystemPart(),r=part.footprintRows.filter(r=>r[0]==='PAD')[1];r[field]=value;if(field===4)r[9]=null;
+    assert.throws(()=>footprint(part,'Nut','Nut.step'),pattern);
+  }
+});
+test('Allegro compiles and audits C2915308 merged padstack on every layer',{skip:!process.env.HUB_CADENCE_ROOT,timeout:60000},async()=>{
+  const d=await fs.mkdtemp(path.join(os.tmpdir(),'hub-stacked-pads-'));
+  try{
+    const fp=await require('../src/cadence.cjs').allegroNative(await stackedSystemPart(),'StackedNut',d,process.env.HUB_CADENCE_ROOT);
+    assert.equal(fp.pads.length,1);assert.ok((await fs.stat(path.join(d,'StackedNut.psm'))).size>100);
+    checkAudit(await fs.readFile(path.join(d,'audit.tsv'),'utf8'),fp.pads,'StackedNut.step');
+  }finally{await fs.rm(d,{recursive:true,force:true});}
+});
+test('Allegro preserves a custom surface figure when merged with a drilled multilayer pad',{skip:!process.env.HUB_CADENCE_ROOT,timeout:60000},async()=>{
+  const part=await stackedSystemPart(),r=part.footprintRows.find(r=>r[0]==='PAD'&&r[4]===1),mil=v=>v/0.0254;
+  r[10]=['POLYGON',[mil(-3),mil(-3),'L',mil(3),mil(-3),mil(3),mil(3),mil(-3),mil(3),mil(-3),mil(-3)]];
+  const d=await fs.mkdtemp(path.join(os.tmpdir(),'hub-stacked-shape-'));
+  try{
+    const fp=await require('../src/cadence.cjs').allegroNative(part,'StackedCustom',d,process.env.HUB_CADENCE_ROOT);
+    assert.equal(fp.pads.length,1);assert.ok(fp.pads[0].shapeName);
+    assert.equal(fp.pads[0].copperLayers.find(p=>p.layer==='BOTTOM').kind,'CIRCLE');
+  }finally{await fs.rm(d,{recursive:true,force:true});}
+});
 test('Unsupported copper is rejected, not silently approximated',async()=>{const p=await readComponent(fixture('C5137636'));p.footprintRows.find(r=>r[0]==='PAD')[10][0]='POLYGON';assert.throws(()=>footprint(p,'cap','m.step'),/焊盘形状/);});
 async function squareExposedPadPart(){
   const part=await readComponent(fixture('C5137636'));
