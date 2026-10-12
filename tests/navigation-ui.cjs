@@ -6,7 +6,7 @@ app.whenReady().then(async()=>{
  const root=path.resolve(__dirname,'..'),win=new BrowserWindow({show:false,width:1100,height:720,webPreferences:{preload:path.join(root,'src/preload.cjs'),sandbox:true,contextIsolation:true}});
  const view=new WebContentsView({webPreferences:{partition:'nav-test'}});win.contentView.addChildView(view);
  view.webContents.session.protocol.handle('https',()=>new Response('<html><body>Navigation test</body></html>',{headers:{'content-type':'text/html'}}));
- const state={queue:[],logs:[],page:'eda',bridge:{connected:false},edaLogin:'signed-in',navigation:{available:true,back:false,forward:false},settings:{}};
+ const state={locale:"zh-CN",queue:[],logs:[],page:'eda',bridge:{connected:false},edaLogin:'signed-in',navigation:{available:true,back:false,forward:false},settings:{}};
  const send=()=>win.webContents.send('hub:state',state);let prompts=0;
  const nav=navigationController(view.webContents,{error:m=>{throw new Error(m);},blocked:r=>{prompts++;state.navigationConfirmation={...r,provider:'eda'};view.setVisible(false);send();}});
  const calls=[];ipcMain.handle('hub:action',async(_event,action,value)=>{

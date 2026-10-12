@@ -21,6 +21,7 @@ jobs:
     env:
       PYTHONUTF8: '1'
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: ''
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -38,6 +39,8 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node node_modules/electron/install.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip install --target tools/ad_vendor -r tools/requirements-ad.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Validate release version
@@ -52,6 +55,8 @@ jobs:
           npm run build:extension
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:i18n
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build Windows packages and verify actual EXE
         run: npm run package:win
@@ -93,4 +98,4 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           mapfile -d '' files < <(find artifacts -type f -print0)
-          gh release create "$RELEASE_TAG" "${files[@]}" --verify-tag --title "立创元件库转换助手 $RELEASE_TAG" --generate-notes
+          gh release create "$RELEASE_TAG" "${files[@]}" --verify-tag --title "LCSC Library Converter $RELEASE_TAG" --generate-notes

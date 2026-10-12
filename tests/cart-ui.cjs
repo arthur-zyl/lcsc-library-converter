@@ -5,7 +5,7 @@ app.setPath('userData', path.join(app.getPath('temp'), 'hub-cart-ui-' + require(
 app.whenReady().then(async () => {
   const { parseDetails } = require('../src/product-details.cjs');
   const sample = parseDetails(await fs.readFile(path.join(__dirname, 'fixtures/C5137636.html'), 'utf8'), 'C5137636', 'https://item.szlcsc.com/5747088.html');
-  const state = { queue: [sample,
+  const state={locale:"zh-CN", queue: [sample,
     { id: 'C5205141', name: 'C5205141', description: '' }], resources: [], page: 'queue', processing: false, bridge: { connected: true, active: null }, logs: [], navigation: {} };
   const win = new BrowserWindow({ show: false, width: 1440, height: 960, webPreferences: { offscreen: true, preload: path.join(root, 'src/preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false } });
   win.setMenu(null);

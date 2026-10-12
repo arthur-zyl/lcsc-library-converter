@@ -1,6 +1,6 @@
 const { ipcRenderer } = require('electron');
 const entries = new Map();
-let queue = new Set(), timer;
+let queue = new Set(), timer, locale='zh-CN';
 const CART = /^(?:加入购物车|加入购物篮|加购物车|加购|AddtoCart)$/i;
 const SELECTOR = 'button,a,input[type="button"],input[type="submit"],[role="button"],span,div';
 const label = node => (node.value || node.textContent || '').replace(/[\s＋+]/g, '').trim();
@@ -79,9 +79,9 @@ function resolve(cart) {
 }
 function paint(entry) {
   const added = entry.item && queue.has(entry.item.id);
-  const title = entry.item ? '加入导出清单：' + entry.item.id : '加入导出清单';
+  const title = (locale==='zh-CN'?'加入导出清单':'Add to export list')+(entry.item?': '+entry.item.id:'');
   if (entry.button.title !== title) entry.button.title = title;
-  const text = added ? '已加入清单' : '加入清单';
+  const text = locale==='zh-CN'?(added?'已加入清单':'加入清单'):(added?'Added to list':'Add to list');
   if (entry.button.textContent !== text) entry.button.textContent = text;
   entry.button.disabled = !!added;
   entry.button.style.opacity = added ? '0.65' : entry.opacity;
@@ -134,3 +134,5 @@ window.addEventListener('DOMContentLoaded', () => {
   if (!/(^|\.)(szlcsc|lcsc)\.com$/i.test(location.hostname)) return;
   scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true });
 });
+
+ipcRenderer.on('shop:locale',(_event,value)=>{locale=value==='zh-CN'?'zh-CN':'en';for(const entry of entries.values())paint(entry);});

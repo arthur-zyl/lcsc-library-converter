@@ -1,12 +1,12 @@
 {
     "name": "lcsc-component-library-helper",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "private": true,
-    "description": "立创元件库转换助手 — 从立创商城与立创 EDA 获取元件资源，转换为多种 EDA 元件库",
+    "description": "LCSC Library Converter — download LCSC/EasyEDA components and export KiCad, Cadence and Altium libraries",
     "main": "src/main.cjs",
     "scripts": {
         "start": "electron .",
-        "test": "node --test tests/core.test.cjs tests/workflow.test.mjs tests/kicad.test.cjs tests/color.test.cjs tests/cadence.test.cjs tests/cadence-custom-pads.test.cjs tests/model-info.test.cjs tests/export-pipeline.test.cjs tests/local-footprints.test.cjs tests/export-log.test.cjs tests/existing-library.test.cjs tests/altium.test.cjs tests/setup.test.cjs tests/preflight.test.cjs tests/export-results.test.cjs tests/recovery.test.cjs tests/export-batches.test.cjs tests/compatibility.test.cjs tests/component-fields.test.cjs tests/browser-navigation.test.cjs",
+        "test": "node --test tests/core.test.cjs tests/workflow.test.mjs tests/kicad.test.cjs tests/color.test.cjs tests/cadence.test.cjs tests/cadence-custom-pads.test.cjs tests/model-info.test.cjs tests/export-pipeline.test.cjs tests/local-footprints.test.cjs tests/export-log.test.cjs tests/existing-library.test.cjs tests/altium.test.cjs tests/setup.test.cjs tests/preflight.test.cjs tests/export-results.test.cjs tests/recovery.test.cjs tests/export-batches.test.cjs tests/compatibility.test.cjs tests/component-fields.test.cjs tests/browser-navigation.test.cjs tests/i18n.test.cjs",
         "test:setup": "electron tests/setup-ui.cjs",
         "test:shop": "electron tests/shop-dom.cjs",
         "test:metadata": "electron . --metadata-smoke",
@@ -17,7 +17,8 @@
         "test:navigation": "electron tests/navigation-ui.cjs",
         "package:win": "node scripts/package-win.mjs",
         "package:dir": "node scripts/package-win.mjs --dir",
-        "package:verify": "node scripts/verify-package.mjs"
+        "package:verify": "node scripts/verify-package.mjs",
+        "test:i18n": "electron tests/i18n-ui.cjs"
     },
     "dependencies": {
         "jszip": "3.10.1",
@@ -30,7 +31,7 @@
         "esbuild": "0.24.2",
         "typescript": "5.7.3"
     },
-    "productName": "立创元件库转换助手",
+    "productName": "LCSC Library Converter",
     "author": "LCSC Library Converter contributors",
     "license": "AGPL-3.0-or-later",
     "repository": {

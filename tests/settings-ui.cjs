@@ -3,7 +3,7 @@ const path=require('node:path'),fs=require('node:fs/promises'),assert=require('n
 const root=path.resolve(__dirname,'..');
 app.setPath('userData',path.join(app.getPath('temp'),'hub-settings-ui-'+require('node:crypto').randomUUID()));
 app.whenReady().then(async()=>{
-  const state={queue:[],resources:[],logs:[],page:'settings',edaLogin:'signed-in',bridge:{connected:true},navigation:{},settings:{freecadPython:'D:\\FreeCAD 1.1\\bin\\python.exe',resourceDir:'E:\\EDA-Library',downloadDir:'E:\\EDA-Downloads',kicadCli:'D:\\KiCad\\9.0\\bin\\kicad-cli.exe',kicadDir:'E:\\KiCad-Library',kicadFootprintLibraryName:'MyParts',cadenceRoot:'D:/Cadence/SPB_25.1',cadenceDir:'E:/Cadence-Library',cadenceLibraryName:'CadenceParts',altiumDir:'E:/AD-Library',altiumLibraryName:'ADParts',altiumFootprintSource:'easyeda',altiumFootprintDir:''}};
+  const state={locale:"zh-CN",queue:[],resources:[],logs:[],page:'settings',edaLogin:'signed-in',bridge:{connected:true},navigation:{},settings:{freecadPython:'D:\\FreeCAD 1.1\\bin\\python.exe',resourceDir:'E:\\EDA-Library',downloadDir:'E:\\EDA-Downloads',kicadCli:'D:\\KiCad\\9.0\\bin\\kicad-cli.exe',kicadDir:'E:\\KiCad-Library',kicadFootprintLibraryName:'MyParts',cadenceRoot:'D:/Cadence/SPB_25.1',cadenceDir:'E:/Cadence-Library',cadenceLibraryName:'CadenceParts',altiumDir:'E:/AD-Library',altiumLibraryName:'ADParts',altiumFootprintSource:'easyeda',altiumFootprintDir:''}};
   let repairs=0,detectionFails=false;
   const win=new BrowserWindow({show:false,width:1440,height:960,backgroundColor:'#edf2f5',webPreferences:{offscreen:true,preload:path.join(root,'src/preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
   let painted;
@@ -17,9 +17,9 @@ app.whenReady().then(async()=>{
     await win.webContents.executeJavaScript(`document.getElementById('settings-tab-${group}').click()`);
     const layout=await win.webContents.executeJavaScript(`(()=>{
       const panel=document.getElementById('settings-panel-${group}');
-      const controls=[...panel.querySelectorAll('input,select,.path-field button')];
+      const controls=[...panel.querySelectorAll('input:not([type=checkbox]),select,.path-field button')];
       return {heights:controls.map(x=>x.getBoundingClientRect().height),
-        labels:[...panel.querySelectorAll('label')].map(x=>getComputedStyle(x).display),
+        labels:[...panel.querySelectorAll('label:not(.settings-check)')].map(x=>getComputedStyle(x).display),
         heading:panel.querySelector('h2').getBoundingClientRect().top,
         overflow:document.getElementById('settings').scrollWidth>document.getElementById('settings').clientWidth};
     })()`);

@@ -1,5 +1,8 @@
 const { app, BrowserWindow, WebContentsView, ipcMain, dialog, shell, clipboard } = require('electron');
-app.setName('立创元件库转换助手');
+app.setName('LCSC Library Converter');
+const {localeFromSystem,createI18n}=require('../ui/i18n.js');
+let locale='en',messages=createI18n(locale);
+const t=(...args)=>messages.t(...args);
 const path = require('node:path'); const fs = require('node:fs/promises'); const { randomUUID } = require('node:crypto');
 const { Store, isShop } = require('./store.cjs'); const { Bridge, DISCOVERY_PORT } = require('./bridge.cjs');
 const { attachDiscovery } = require('./discovery-session.cjs');
@@ -27,7 +30,7 @@ function showExportResult(message) {
   if (!win || win.isDestroyed() || resultDialogOpen) return;
   resultDialogOpen = true;
   setEdaLocked(false);
-  exportResult={id:randomUUID(),failed:!message.converted,title:message.stoppedReason?'任务已中止':message.converted?'导出完成':'导出失败',
+  exportResult={id:randomUUID(),locale,failed:!message.converted,title:message.stoppedReason?'任务已中止':message.converted?'导出完成':'导出失败',
     detail:`${({kicad:'KiCad',cadence:'Cadence',altium:'Altium Designer'}[message.target])}：成功 ${message.converted}，未完成 ${message.failed}。\n${message.converted?'目标元件库已保存到设置的固定目录。\n':''}${message.message || ''}${message.failed?'\n未完成的元件保留在清单中，可重新导出。':''}`,
     confirmLabel:message.converted?'打开库目录':'确定',stayLabel:'关闭',logPath:message.logPath,openFolder:message.converted?message.folder:undefined};
   current='queue';layout();resultCover.webContents.send('result:state',exportResult);resultCover.webContents.focus();publish();
@@ -77,15 +80,15 @@ if (smoke) app.setPath('userData', path.join(app.getPath('temp'), 'eda-component
 else app.setPath('userData',path.join(app.getPath('appData'),'eda-component-hub'));
 function log(message) { exportJournal?.add(message); logs.push({ time: new Date().toLocaleTimeString('zh-CN'), message: String(message).slice(0, 4000) }); logs = logs.slice(-100); publish(); }
 function snapshot() { const view = current === 'eda' ? eda : current === 'shop' ? shop : undefined;
-  return { ...store.state, settings:paths(store),settingsBusy,converting,conversionProgress, metadata: Object.fromEntries(metadata), bridge: bridge.status(), logs, processing, page: current, root: ROOT, edaLogin, edaLocked,
+  return { ...store.state, locale, settings:paths(store),settingsBusy,converting,conversionProgress, metadata: Object.fromEntries(metadata), bridge: bridge.status(), logs, processing, page: current, root: ROOT, edaLogin, edaLocked,
     navigationConfirmation:navigationConfirmation?{id:navigationConfirmation.id,provider:navigationConfirmation.provider,action:navigationConfirmation.action}:null,
     navigation: { url: view?.webContents.getURL() || '', available: !!view,
       back: view?.webContents.navigationHistory.canGoBack() || false, forward: view?.webContents.navigationHistory.canGoForward() || false } }; }
 function publish() { if (win && !win.isDestroyed() && store && bridge) {
   layout();
   win.webContents.send('hub:state', snapshot());
-  if (exportProgress && edaCover && !edaCover.webContents.isDestroyed()) edaCover.webContents.send('export:progress', {...exportProgress, requestId:exportJob?.requestId, stopRequested:!!exportJob?.stopRequested, canStop:!!exportJob && !exportJob.finishing});
-  if (shop && !shop.webContents.isDestroyed()) shop.webContents.send('shop:queue', store.state.queue.map(x => x.id));
+  if (exportProgress && edaCover && !edaCover.webContents.isDestroyed()) edaCover.webContents.send('export:progress', {...exportProgress, locale, requestId:exportJob?.requestId, stopRequested:!!exportJob?.stopRequested, canStop:!!exportJob && !exportJob.finishing});
+  if (shop && !shop.webContents.isDestroyed()) {shop.webContents.send('shop:locale',locale);shop.webContents.send('shop:queue', store.state.queue.map(x => x.id));}
 } }
 function layout() { if (!win || win.isDestroyed()) return; const [w, h] = win.getContentSize();
   const top=(!['setup'].includes(current)&&(edaLogin==='signed-out'||!bridge?.status().connected&&edaLogin!=='checking'))?158:120;
@@ -176,6 +179,9 @@ function enrichItem(item, retry = false) {
   enrichment.set(item.id, request);
 }
 app.whenReady().then(async () => {
+  const override=process.argv.find(arg=>arg.startsWith('--ui-language='))?.slice(14);
+  locale=localeFromSystem(override||app.getPreferredSystemLanguages());messages=createI18n(locale);
+
   if (!app.requestSingleInstanceLock()) { if (smoke) throw new Error('Smoke instance could not acquire its isolated lock'); app.quit(); return; }
   store = await new Store(smoke || app.isPackaged ? path.join(app.getPath('userData'), 'data') : path.join(ROOT, 'data')).init(); bridge = await new Bridge().start();await recover(store);
   if(!store.state.freecadPython)store.state.freecadPython=await detectFreeCAD();
@@ -196,7 +202,7 @@ app.whenReady().then(async () => {
     }
     log(m.message || (m.type === 'exported' ? '立创 EDA 导出完成，等待下载处理' : JSON.stringify(m)));
   });
-  win = new BrowserWindow({ title: '立创元件库转换助手', width: 1440, height: 960, minWidth: 1060, minHeight: 720,
+  win = new BrowserWindow({ title: 'LCSC Library Converter', width: 1440, height: 960, minWidth: 1060, minHeight: 720,
     show: !smoke, backgroundColor: '#f3f6f5', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   win.setMenu(null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -303,7 +309,7 @@ app.whenReady().then(async () => {
         case 'settings-pick': {
           if(!['freecadPython','kicadCli','kicadDir','cadenceRoot','cadenceDir','kicadFootprintDir','cadenceFootprintDir','altiumDir','altiumFootprintDir'].includes(value)) throw new Error('未知设置');
           const executable=['freecadPython','kicadCli'].includes(value);
-          const selected=await dialog.showOpenDialog(win,{title:{freecadPython:'选择 FreeCAD bin 目录内的 python.exe',kicadCli:'选择 KiCad bin 目录内的 kicad-cli.exe',kicadDir:'选择 KiCad 库导出目录',cadenceRoot:'选择 Cadence SPB 安装目录',cadenceDir:'选择 Cadence 库导出目录',kicadFootprintDir:'选择 KiCad 本地封装库',cadenceFootprintDir:'选择 Cadence 本地封装库',altiumDir:'选择 AD 库导出目录',altiumFootprintDir:'选择 AD 本地 PcbLib 目录'}[value],defaultPath:paths(store)[value],properties:executable ? ['openFile'] : ['openDirectory','createDirectory'],...(executable ? {filters:[{name:'程序',extensions:['exe']}]} : {})});
+          const selected=await dialog.showOpenDialog(win,{title:t({freecadPython:'选择 FreeCAD bin 目录内的 python.exe',kicadCli:'选择 KiCad bin 目录内的 kicad-cli.exe',kicadDir:'选择 KiCad 库导出目录',cadenceRoot:'选择 Cadence SPB 安装目录',cadenceDir:'选择 Cadence 库导出目录',kicadFootprintDir:'选择 KiCad 本地封装库',cadenceFootprintDir:'选择 Cadence 本地封装库',altiumDir:'选择 AD 库导出目录',altiumFootprintDir:'选择 AD 本地 PcbLib 目录'}[value]),defaultPath:paths(store)[value],properties:executable ? ['openFile'] : ['openDirectory','createDirectory'],...(executable ? {filters:[{name:t('程序'),extensions:['exe']}]} : {})});
           return {ok:true,path:selected.canceled ? null : selected.filePaths[0]};
         }
         case 'setup-download': {
@@ -350,7 +356,7 @@ app.whenReady().then(async () => {
         default: throw new Error('未知操作');
       }
       publish(); return { ok: true };
-    } catch (e) { if (edaLocked && !bridge.active && !exportJob) setEdaLocked(false); log(e.message); return { ok: false, message: e.message }; }
+    } catch (e) { if (edaLocked && !bridge.active && !exportJob) setEdaLocked(false); log(e.message); return { ok: false, message: t(e.message) }; }
   });
   await win.loadFile(path.join(ROOT, 'ui/index.html')); layout(); store.state.resources=[]; if(current==='setup'){store.state.setupShown=true;await store.persist();} publish();
   if(setupSmoke){
@@ -479,9 +485,9 @@ app.whenReady().then(async () => {
     console.log('METADATA_SMOKE_OK ' + JSON.stringify({ id: item.id, package: item.package, parameters: item.parameters.length })); app.quit(); return;
   }
   if (smoke) {
-    const result = await win.webContents.executeJavaScript('({title: document.title, buttons: document.querySelectorAll("button").length, hasBridge: typeof window.hub.call === "function"})');
-    if (result.title !== '立创元件库转换助手' || result.buttons < 8 || !result.hasBridge) throw new Error('UI smoke failed');
+    const result = await win.webContents.executeJavaScript('({title: document.title, buttons: document.querySelectorAll("button").length, hasBridge: typeof window.hub.call === "function", language:document.documentElement.lang})');
+    if (result.title !== 'LCSC Library Converter' || result.buttons < 8 || !result.hasBridge || result.language!==locale) throw new Error('UI smoke failed');
     console.log('SMOKE_OK ' + JSON.stringify(result)); app.quit();
   }
-}).catch(e => { console.error(e); if (!smoke) dialog.showErrorBox('立创元件库转换助手', e.message); app.exit(1); });
+}).catch(e => { console.error(e); if (!smoke) dialog.showErrorBox('LCSC Library Converter', t(e.message)); app.exit(1); });
 app.on('window-all-closed', () => app.quit());

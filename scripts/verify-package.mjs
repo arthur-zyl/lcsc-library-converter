@@ -7,7 +7,7 @@ import {spawn} from 'node:child_process';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),release=path.join(root,'release');
 const appRoot=path.join(release,'win-unpacked/resources/app');
 const extension=JSON.parse(await fs.readFile(path.join(root,'extensions/easyeda/extension.json'),'utf8'));
-for(const relative of ['src/main.cjs','ui/index.html','tools/process_download.py','tools/extract_easyeda_step.py',
+for(const relative of ['src/main.cjs','ui/index.html','ui/i18n.js','ui/locales/en.js','tools/process_download.py','tools/extract_easyeda_step.py',
  'tools/capture_convert.tcl','tools/capture_check.py','tools/altium_convert.py','tools/step_bounds.py',
  `dist/${extension.name}_v${extension.version}.eext`,'node_modules/ws/package.json','node_modules/jszip/package.json',
  ...['altium_monkey','freetype','lxml','lz4','PIL','uharfbuzz','geometer'].map(n=>'tools/ad_vendor/'+n)])await fs.access(path.join(appRoot,relative));

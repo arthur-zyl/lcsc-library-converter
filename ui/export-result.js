@@ -1,13 +1,16 @@
+const t=(...args)=>window.i18n.t(...args);
+window.i18n.apply(document);
 const modal = document.querySelector('dialog');
 let result;
 window.exportResult.onState(value => {
+  if(value.locale)window.i18n.setLocale(value.locale,document);
   result = value;
   document.getElementById('result-log').hidden = !value.logPath;
-  document.getElementById('result-title').textContent = value.title;
-  document.getElementById('result-detail').textContent = value.detail;
+  document.getElementById('result-title').textContent = t(value.title);
+  document.getElementById('result-detail').textContent = t(value.detail);
   document.getElementById('result-stay').hidden = value.failed;
-  document.getElementById('result-confirm').textContent = value.confirmLabel || (value.failed ? '确定' : '确认');
-  document.getElementById('result-stay').textContent = value.stayLabel || '关闭';
+  document.getElementById('result-confirm').textContent = t(value.confirmLabel) || (value.failed ? t("确定") : t("确认"));
+  document.getElementById('result-stay').textContent = t(value.stayLabel) || t("关闭");
   if (!modal.open) modal.showModal();
   document.getElementById('result-confirm').focus();
 });

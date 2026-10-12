@@ -56,7 +56,10 @@ app.whenReady().then(async () => {
     assert(getComputedStyle(buttons()[0]).backgroundColor === 'rgb(255, 79, 79)', 'Detail replacement must preserve the merchant red color');
     listeners['shop:capture-request'](); assert(messages.at(-1).item.id === 'C48997937', 'Sidebar detail capture must still work');
     const beforeKey = messages.length; buttons()[0].dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); assert(messages.length === beforeKey+1 && purchased===0, 'Keyboard activation must add to list without purchase handlers');
-    return { checks: 27, messages: messages.length };
+    listeners['shop:locale']({},'en'); assert(buttons()[0].textContent==='Add to list','English add button');
+    listeners['shop:queue']({},['C48997937']); assert(buttons()[0].textContent==='Added to list','English queued button');
+    listeners['shop:locale']({},'zh-CN'); assert(buttons()[0].textContent==='已加入清单','Chinese queued button');
+    return { checks: 30, messages: messages.length };
   })()`);
   console.log('SHOP_DOM_OK ' + JSON.stringify(result)); win.destroy(); app.quit();
 }).catch(error => { console.error(error); app.exit(1); });

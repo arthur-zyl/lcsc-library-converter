@@ -1,4 +1,12 @@
-# 立创元件库转换助手
+# LCSC Library Converter
+
+## 界面语言
+
+软件自动读取系统首选语言：中文系统（含 zh-CN、zh-TW、zh-HK 等）使用中文；英文及暂未支持的其他系统语言使用英文。软件标题、安装程序、快捷方式及程序主体名称统一为 **LCSC Library Converter**。更名继续使用原有用户数据目录，保留登录状态和导出清单。
+
+本地化覆盖导航、设置、首次使用引导、清单操作、常用校验提示、导出进度及结果弹窗，并包含商城注入的加入清单按钮。商城页面和原始元件名称、参数、描述以及上游诊断原文保持原样。词条位于 `ui/locales/en.js`，语言选择和模板翻译位于 `ui/i18n.js`；增加或修改界面词条时由覆盖测试检查。
+
+`npm run test:i18n` 验证真实中英文界面、最小窗口布局、进度和结果弹窗；测试可通过 `--ui-language=en` / `--ui-language=zh-CN` 覆盖系统语言。
 
 [软件下载](https://github.com/arthur-zyl/lcsc-library-converter/releases/latest) · [自动构建](https://github.com/arthur-zyl/lcsc-library-converter/actions) · [问题反馈](https://github.com/arthur-zyl/lcsc-library-converter/issues)
 
@@ -29,7 +37,7 @@ git push origin main --tags
 npm run package:win
 ```
 
-会自动检查插件类型、构建立创 EDA 插件，并生成 `release/LCSC-Library-Converter-Setup-0.1.0.exe` 安装程序和 `release/LCSC-Library-Converter-0.1.0-win-x64.zip` 免安装包。安装程序支持选择安装目录并创建快捷方式；免安装包需完整解压后运行其中的 `LCSC-Library-Converter.exe`。用户无需安装 Node.js。
+会自动检查插件类型、构建立创 EDA 插件，并生成 `release/LCSC-Library-Converter-Setup-0.2.0.exe` 安装程序和 `release/LCSC-Library-Converter-0.2.0-win-x64.zip` 免安装包。安装程序支持选择安装目录并创建快捷方式；免安装包需完整解压后运行其中的 `LCSC-Library-Converter.exe`。用户无需安装 Node.js。
 
 `npm run package:dir` 仅生成 `release/win-unpacked`；`npm run package:verify` 检查已构建目录的资源及依赖完整性、排除个人数据，并在独立临时配置目录启动实际 EXE 验证，生成分发文件的 SHA256SUMS.txt。打包器固定为 electron-builder 26.15.3，使用本地已安装的 Electron 分发目录。首次构建可能下载 NSIS 和压缩工具。
 
