@@ -1,0 +1,96 @@
+name: Windows build and release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      PYTHONUTF8: '1'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: tools/requirements-ad.txt
+      - name: Install locked dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip install --target tools/ad_vendor -r tools/requirements-ad.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate release version
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:RELEASE_TAG -ne "v$version") { throw "Tag must match package.json version: v$version" }
+      - name: Build extension and run regression tests
+        run: |
+          npm run build:extension
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build Windows packages and verify actual EXE
+        run: npm run package:win
+      - name: Archive corresponding project source
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          git archive --format=zip --output="release/LCSC-Library-Converter-$version-source.zip" HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/archive-ad-source.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run package:verify
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-x64
+          path: |
+            release/LCSC-Library-Converter-*.exe
+            release/LCSC-Library-Converter-*.zip
+            release/SHA256SUMS.txt
+            dist/*.eext
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/') && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: windows-x64
+          path: artifacts
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          mapfile -d '' files < <(find artifacts -type f -print0)
+          gh release create "$RELEASE_TAG" "${files[@]}" --verify-tag --title "立创元件库转换助手 $RELEASE_TAG" --generate-notes

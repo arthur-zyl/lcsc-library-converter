@@ -1,10 +1,27 @@
 # 立创元件库转换助手
 
+[软件下载](https://github.com/arthur-zyl/lcsc-library-converter/releases/latest) · [自动构建](https://github.com/arthur-zyl/lcsc-library-converter/actions) · [问题反馈](https://github.com/arthur-zyl/lcsc-library-converter/issues)
+
 元件及原始符号、封装、3D 模型来源于立创商城与立创 EDA；本工具提供下载、提取和格式转换功能，为独立开发项目。
 
 Windows Electron 应用：内嵌立创商城选料，连接 EasyEDA Pro 导出原始库，通过 FreeCAD 提取独立 STEP，再转换为目标 EDA 库。目前支持 KiCad、Cadence Capture / Allegro 以及 Altium Designer 原生元件库。
 
-## Windows 打包
+## 自动构建与发布
+
+GitHub Actions 在推送 `main`、提交 Pull Request 或手动运行时，安装锁定的 Node/Python 依赖、运行回归测试、生成 Windows x64 安装程序及免安装 ZIP，并启动实际 EXE 验证。构建产物在 Actions 中保留 14 天。
+
+正式发布先更新 `package.json` / `package-lock.json` 中的版本并提交，再推送对应标签，例如：
+
+```powershell
+git tag v0.1.0
+git push origin main --tags
+```
+
+只有版本标签触发自动 Release。标签必须等于 `v` 加软件版本，否则流水线拒绝发布。Release 包含安装程序、免安装 ZIP、对应项目源码 ZIP、立创 EDA 插件和 SHA256 校验文件。发布使用 GitHub 自动提供的 `GITHUB_TOKEN`，无需添加个人访问令牌；构建任务仅有读取权限，发布任务才有仓库写入权限。
+
+项目采用 AGPL-3.0-or-later；参见 [LICENSE](LICENSE) 和 [资源及第三方依赖说明](THIRD_PARTY.md)。
+
+## 本地 Windows 打包
 
 在 Windows x64 环境完成 `npm ci`，并按下文用 FreeCAD Python 安装 `tools/requirements-ad.txt` 后执行：
 
@@ -39,11 +56,11 @@ npm run build:extension
 
 `requirements-ad.txt` 固定当前验证的版本，安装后的包及各自许可证位于被忽略的 `tools/ad_vendor`。如果该 Python 未提供 pip，先使用该 Python 的 `-m ensurepip` 安装 pip。
 
-构建完成后执行 `npm test` 验证，双击 `Start.vbs` 启动。插件安装包由 `npm run build:extension` 生成到 `dist`。
+构建完成后执行 `npm test` 验证，执行 `npm start` 启动。插件安装包由 `npm run build:extension` 生成到 `dist`。
 
 ## 启动与导出
 
-双击 `Start.vbs`，或执行 `npm start`。首次安装依赖执行 `npm ci`。
+执行 `npm start`。首次安装依赖执行 `npm ci`。
 
 首次启动会显示使用引导：
 

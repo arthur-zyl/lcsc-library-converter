@@ -5,7 +5,7 @@ module.exports={
  directories:{output:'release'},electronDist:path.resolve(__dirname,'node_modules/electron/dist'),
  // FreeCAD and Tcl read these scripts directly from disk, outside Electron.
  asar:false,
- files:['package.json','src/**/*.cjs','ui/**/*','tools/*.py','tools/*.tcl','tools/*.txt',
+ files:['package.json','LICENSE','THIRD_PARTY.md','src/**/*.cjs','ui/**/*','tools/*.py','tools/*.tcl','tools/*.txt',
   'tools/ad_vendor/**/*','!**/__pycache__/**','!**/*.pyc',
   'extensions/easyeda/extension.json',`dist/${extension.name}_v${extension.version}.eext`],
  extraFiles:[{from:'packaging/使用说明.txt',to:'使用说明.txt'}],
