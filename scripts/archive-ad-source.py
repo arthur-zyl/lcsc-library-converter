@@ -1,4 +1,4 @@
-"""Attach the exact AGPL dependency source archive to GitHub Releases."""
+"""Archive exact AGPL dependency source for the release support branch."""
 import hashlib
 import json
 from pathlib import Path

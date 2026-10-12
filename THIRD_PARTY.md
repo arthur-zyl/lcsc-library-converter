@@ -23,4 +23,4 @@
 | uharfbuzz | 0.56.3 | https://github.com/harfbuzz/uharfbuzz — Apache-2.0 及 HarfBuzz notices |
 
 Python 依赖固定在 `tools/requirements-ad.txt`；Node 依赖锁定在 `package-lock.json`。
-Release 附带与版本标签一致的项目源码 ZIP，Python 依赖的 Python 源码和许可证也随软件分发。
+Release 发布说明提供与版本标签一致的项目源码 ZIP 和 AD 依赖对应源码下载链接，文件保存在仓库的 `release-support` 分支。Python 依赖的 Python 源码和许可证也随软件分发。

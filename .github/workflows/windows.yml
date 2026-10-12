@@ -58,6 +58,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:i18n
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tests/release-support.test.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build Windows packages and verify actual EXE
         run: npm run package:win
       - name: Archive corresponding project source
@@ -87,6 +89,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: windows-x64
@@ -97,5 +102,8 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          mapfile -d '' files < <(find artifacts -type f -print0)
-          gh release create "$RELEASE_TAG" "${files[@]}" --verify-tag --title "LCSC Library Converter $RELEASE_TAG" --generate-notes
+          python3 scripts/release-support.py --repo "$GH_REPO" --tag "$RELEASE_TAG" --artifacts artifacts --notes release-notes.md
+          version="${RELEASE_TAG#v}"
+          mapfile -d '' files < <(find artifacts -type f \( -name "LCSC-Library-Converter-Setup-${version}.exe" -o -name "LCSC-Library-Converter-${version}-win-x64.zip" \) -print0)
+          test "${#files[@]}" -eq 2
+          gh release create "$RELEASE_TAG" "${files[@]}" --verify-tag --title "LCSC Library Converter $RELEASE_TAG" --notes-file release-notes.md

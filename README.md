@@ -25,7 +25,7 @@ git tag v0.1.0
 git push origin main --tags
 ```
 
-只有版本标签触发自动 Release。标签必须等于 `v` 加软件版本，否则流水线拒绝发布。Release 包含安装程序、免安装 ZIP、对应项目源码 ZIP、立创 EDA 插件和 SHA256 校验文件。发布使用 GitHub 自动提供的 `GITHUB_TOKEN`，无需添加个人访问令牌；构建任务仅有读取权限，发布任务才有仓库写入权限。
+只有版本标签触发自动 Release。标签必须等于 `v` 加软件版本，否则流水线拒绝发布。发布说明使用英文，Assets 只上传安装程序和免安装 ZIP；对应项目源码、AD 依赖源码、立创 EDA 插件和 SHA256 校验文件永久保存在仓库的 `release-support` 分支，发布说明提供对应版本的直接下载链接。GitHub 自带的 Source code (zip/tar.gz) 下载项无法隐藏。发布使用 GitHub 自动提供的 `GITHUB_TOKEN`，无需添加个人访问令牌；构建任务仅有读取权限，发布任务才有仓库写入权限。
 
 项目采用 AGPL-3.0-or-later；参见 [LICENSE](LICENSE) 和 [资源及第三方依赖说明](THIRD_PARTY.md)。
 
