@@ -1,4 +1,5 @@
 const { app, BrowserWindow, WebContentsView, ipcMain, dialog, shell, clipboard } = require('electron');
+app.setName('立创元件库助手');
 const path = require('node:path'); const fs = require('node:fs/promises'); const { randomUUID } = require('node:crypto');
 const { Store, isShop } = require('./store.cjs'); const { Bridge, DISCOVERY_PORT } = require('./bridge.cjs');
 const { attachDiscovery } = require('./discovery-session.cjs');
@@ -73,6 +74,7 @@ const setupSmoke=process.argv.includes('--setup-smoke');
 const smoke = process.argv.includes('--smoke') || metadataSmoke || journeySmoke || kicadSmoke || cadenceSmoke || altiumSmoke || setupSmoke || batchSmoke;
 // Keep hidden startup checks separate from an already running user's browser session.
 if (smoke) app.setPath('userData', path.join(app.getPath('temp'), 'eda-component-hub-smoke-' + randomUUID()));
+else app.setPath('userData',path.join(app.getPath('appData'),'eda-component-hub'));
 function log(message) { exportJournal?.add(message); logs.push({ time: new Date().toLocaleTimeString('zh-CN'), message: String(message).slice(0, 4000) }); logs = logs.slice(-100); publish(); }
 function snapshot() { const view = current === 'eda' ? eda : current === 'shop' ? shop : undefined;
   return { ...store.state, settings:paths(store),settingsBusy,converting,conversionProgress, metadata: Object.fromEntries(metadata), bridge: bridge.status(), logs, processing, page: current, root: ROOT, edaLogin, edaLocked,
@@ -194,7 +196,7 @@ app.whenReady().then(async () => {
     }
     log(m.message || (m.type === 'exported' ? '立创 EDA 导出完成，等待下载处理' : JSON.stringify(m)));
   });
-  win = new BrowserWindow({ title: 'EDA Component Hub · 元件资源库', width: 1440, height: 960, minWidth: 1060, minHeight: 720,
+  win = new BrowserWindow({ title: '立创元件库助手', width: 1440, height: 960, minWidth: 1060, minHeight: 720,
     show: !smoke, backgroundColor: '#f3f6f5', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   win.setMenu(null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -478,8 +480,8 @@ app.whenReady().then(async () => {
   }
   if (smoke) {
     const result = await win.webContents.executeJavaScript('({title: document.title, buttons: document.querySelectorAll("button").length, hasBridge: typeof window.hub.call === "function"})');
-    if (result.title !== 'EDA Component Hub' || result.buttons < 8 || !result.hasBridge) throw new Error('UI smoke failed');
+    if (result.title !== '立创元件库助手' || result.buttons < 8 || !result.hasBridge) throw new Error('UI smoke failed');
     console.log('SMOKE_OK ' + JSON.stringify(result)); app.quit();
   }
-}).catch(e => { console.error(e); if (!smoke) dialog.showErrorBox('EDA Component Hub', e.message); app.exit(1); });
+}).catch(e => { console.error(e); if (!smoke) dialog.showErrorBox('立创元件库助手', e.message); app.exit(1); });
 app.on('window-all-closed', () => app.quit());

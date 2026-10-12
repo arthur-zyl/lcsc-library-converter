@@ -1,8 +1,8 @@
 {
-    "name": "eda-component-hub",
+    "name": "lcsc-component-library-helper",
     "version": "0.1.0",
     "private": true,
-    "description": "EDA Component Hub — 元件选料、资源提取与多 EDA 转换桌面工具",
+    "description": "立创元件库助手 — 从立创商城与立创 EDA 获取元件资源，转换为多种 EDA 元件库",
     "main": "src/main.cjs",
     "scripts": {
         "start": "electron .",
@@ -25,5 +25,6 @@
         "esbuild": "0.24.2",
         "typescript": "5.7.3",
         "@jlceda/pro-api-types": "0.4.25"
-    }
+    },
+    "productName": "立创元件库助手"
 }

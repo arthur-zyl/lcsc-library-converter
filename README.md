@@ -1,4 +1,6 @@
-# EDA Component Hub · EDA 元件资源库
+# 立创元件库助手
+
+元件及原始符号、封装、3D 模型来源于立创商城与立创 EDA；本工具提供下载、提取和格式转换功能，为独立开发项目。
 
 Windows Electron 应用：内嵌立创商城选料，连接 EasyEDA Pro 导出原始库，通过 FreeCAD 提取独立 STEP，再转换为目标 EDA 库。目前支持 KiCad、Cadence Capture / Allegro 以及 Altium Designer 原生元件库。
 
