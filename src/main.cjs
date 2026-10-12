@@ -1,5 +1,5 @@
 const { app, BrowserWindow, WebContentsView, ipcMain, dialog, shell, clipboard } = require('electron');
-app.setName('立创元件库助手');
+app.setName('立创元件库转换助手');
 const path = require('node:path'); const fs = require('node:fs/promises'); const { randomUUID } = require('node:crypto');
 const { Store, isShop } = require('./store.cjs'); const { Bridge, DISCOVERY_PORT } = require('./bridge.cjs');
 const { attachDiscovery } = require('./discovery-session.cjs');
@@ -196,7 +196,7 @@ app.whenReady().then(async () => {
     }
     log(m.message || (m.type === 'exported' ? '立创 EDA 导出完成，等待下载处理' : JSON.stringify(m)));
   });
-  win = new BrowserWindow({ title: '立创元件库助手', width: 1440, height: 960, minWidth: 1060, minHeight: 720,
+  win = new BrowserWindow({ title: '立创元件库转换助手', width: 1440, height: 960, minWidth: 1060, minHeight: 720,
     show: !smoke, backgroundColor: '#f3f6f5', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   win.setMenu(null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -480,8 +480,8 @@ app.whenReady().then(async () => {
   }
   if (smoke) {
     const result = await win.webContents.executeJavaScript('({title: document.title, buttons: document.querySelectorAll("button").length, hasBridge: typeof window.hub.call === "function"})');
-    if (result.title !== '立创元件库助手' || result.buttons < 8 || !result.hasBridge) throw new Error('UI smoke failed');
+    if (result.title !== '立创元件库转换助手' || result.buttons < 8 || !result.hasBridge) throw new Error('UI smoke failed');
     console.log('SMOKE_OK ' + JSON.stringify(result)); app.quit();
   }
-}).catch(e => { console.error(e); if (!smoke) dialog.showErrorBox('立创元件库助手', e.message); app.exit(1); });
+}).catch(e => { console.error(e); if (!smoke) dialog.showErrorBox('立创元件库转换助手', e.message); app.exit(1); });
 app.on('window-all-closed', () => app.quit());
