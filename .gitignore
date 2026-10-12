@@ -2,6 +2,7 @@
 node_modules/
 /tools/ad_vendor/
 /dist/
+/release/
 /extensions/easyeda/dist/
 /tests/dist/
 

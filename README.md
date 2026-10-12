@@ -4,7 +4,23 @@
 
 Windows Electron 应用：内嵌立创商城选料，连接 EasyEDA Pro 导出原始库，通过 FreeCAD 提取独立 STEP，再转换为目标 EDA 库。目前支持 KiCad、Cadence Capture / Allegro 以及 Altium Designer 原生元件库。
 
-## 从 Git 获取源码后
+## Windows 打包
+
+在 Windows x64 环境完成 `npm ci`，并按下文用 FreeCAD Python 安装 `tools/requirements-ad.txt` 后执行：
+
+```powershell
+npm run package:win
+```
+
+会自动检查插件类型、构建立创 EDA 插件，并生成 `release/LCSC-Library-Converter-Setup-0.1.0.exe` 安装程序和 `release/LCSC-Library-Converter-0.1.0-win-x64.zip` 免安装包。安装程序支持选择安装目录并创建快捷方式；免安装包需完整解压后运行其中的 `LCSC-Library-Converter.exe`。用户无需安装 Node.js。
+
+`npm run package:dir` 仅生成 `release/win-unpacked`；`npm run package:verify` 检查已构建目录的资源及依赖完整性、排除个人数据，并在独立临时配置目录启动实际 EXE 验证，生成分发文件的 SHA256SUMS.txt。打包器固定为 electron-builder 26.15.3，使用本地已安装的 Electron 分发目录。首次构建可能下载 NSIS 和压缩工具。
+
+包内包含当前版本 `.eext` 插件、转换脚本和 AD 第三方依赖及许可证；不包含个人配置、清单、浏览器登录数据、导出库、故障文件或测试数据。FreeCAD、KiCad、Cadence 本体不随包分发，启动后通过使用引导配置。安装版与免安装版的个人数据均保存在 `%APPDATA%/eda-component-hub/data`，浏览器登录数据保存在同一 userData 目录；卸载保留个人数据。源码运行仍使用工程内 `data`，不会自动合并到分发版。
+
+转换工具由外部 Python/Tcl 进程读取，因此运行资源以实际文件打包；不要单独移动 EXE 或删除 `resources/app/tools`。`release` 为构建产物，不进入 Git。
+
+## 开发环境准备
 
 仓库保留源码、测试、`package-lock.json` 和 AD 依赖版本清单。`node_modules`、`tools/ad_vendor`、构建安装包、个人配置及导出库均不进入 Git；首次运行通过使用引导重新配置本机路径。
 

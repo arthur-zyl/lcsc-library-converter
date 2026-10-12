@@ -14,17 +14,22 @@
         "build:extension": "node scripts/build-extension.mjs",
         "typecheck:extension": "tsc -p extensions/easyeda/tsconfig.json --noEmit --incremental false",
         "smoke": "electron . --smoke",
-        "test:navigation": "electron tests/navigation-ui.cjs"
+        "test:navigation": "electron tests/navigation-ui.cjs",
+        "package:win": "node scripts/package-win.mjs",
+        "package:dir": "node scripts/package-win.mjs --dir",
+        "package:verify": "node scripts/verify-package.mjs"
     },
     "dependencies": {
-        "ws": "8.22.0",
-        "jszip": "3.10.1"
+        "jszip": "3.10.1",
+        "ws": "8.22.0"
     },
     "devDependencies": {
+        "@jlceda/pro-api-types": "0.4.25",
         "electron": "44.7.0",
+        "electron-builder": "26.15.3",
         "esbuild": "0.24.2",
-        "typescript": "5.7.3",
-        "@jlceda/pro-api-types": "0.4.25"
+        "typescript": "5.7.3"
     },
-    "productName": "立创元件库转换助手"
+    "productName": "立创元件库转换助手",
+    "author": "LCSC Library Converter contributors"
 }

@@ -62,7 +62,7 @@ function dismissExportResult(id, choice) {
 }
 function setEdaLocked(value) { if (edaLocked === value) return; edaLocked = value; if (!win || win.isDestroyed()) return; layout(); if (value && edaCover && !edaCover.webContents.isDestroyed()) edaCover.webContents.focus(); else if (!value && current === 'eda' && eda && !eda.webContents.isDestroyed()) eda.webContents.focus(); publish(); }
 let edaLogin = 'checking', loginPrompted = false;
-const PLUGIN_NAME = 'lcsc-cadence-downloader_v0.5.6.eext';
+const PLUGIN_NAME = 'lcsc-cadence-downloader_v'+require('../extensions/easyeda/extension.json').version+'.eext';
 function setLogin(value) { if (edaLogin === value) return; edaLogin = value; if (value === 'signed-out' && !loginPrompted) { loginPrompted = true; current = 'eda'; layout(); log('请先登录立创 EDA，登录后才能连接和导出。'); } publish(); }
 const metadataSmoke = process.argv.includes('--metadata-smoke');
 const journeySmoke = process.argv.includes('--journey-smoke');
@@ -177,7 +177,7 @@ function enrichItem(item, retry = false) {
 }
 app.whenReady().then(async () => {
   if (!app.requestSingleInstanceLock()) { if (smoke) throw new Error('Smoke instance could not acquire its isolated lock'); app.quit(); return; }
-  store = await new Store(smoke ? path.join(app.getPath('userData'), 'data') : path.join(ROOT, 'data')).init(); bridge = await new Bridge().start();await recover(store);
+  store = await new Store(smoke || app.isPackaged ? path.join(app.getPath('userData'), 'data') : path.join(ROOT, 'data')).init(); bridge = await new Bridge().start();await recover(store);
   if(!store.state.freecadPython)store.state.freecadPython=await detectFreeCAD();
   if((!smoke || setupSmoke) && !store.state.setupCompleted && !store.state.setupShown)current='setup';
   if(!store.state.kicadCli)store.state.kicadCli=await detectKiCad();
