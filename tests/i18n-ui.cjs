@@ -1,14 +1,22 @@
 const {app,BrowserWindow,ipcMain}=require('electron'),path=require('node:path'),assert=require('node:assert/strict');
 app.setPath('userData',path.join(app.getPath('temp'),'hub-i18n-'+require('node:crypto').randomUUID()));
 app.whenReady().then(async()=>{
- const root=path.resolve(__dirname,'..'),state={locale:'en',queue:[{id:'C2915308',name:'SMTSO3030CTJ',brand:'雄和远景',description:'贴片圆螺母',parameters:[{name:'材料',value:'铜镀锡'}]}],logs:[],page:'settings',edaLogin:'signed-in',bridge:{connected:true},navigation:{available:true},settings:{},exportItemResults:{kicad:{C2915308:{status:'failed',label:'失败',message:'请先登录立创 EDA。'}}}};
+ const root=path.resolve(__dirname,'..'),state={locale:'en',queue:[{id:'C2915308',name:'SMTSO3030CTJ',brand:'雄和远景',description:'贴片圆螺母',parameters:[{name:'材料',value:'铜镀锡'}]}],logs:[],page:'settings',edaLogin:'signed-in',bridge:{connected:true},navigation:{available:true},settings:{freecadPython:"D:/FreeCAD/bin/python.exe"},exportItemResults:{kicad:{C2915308:{status:'failed',label:'失败',message:'请先登录立创 EDA。'}}}};
  const win=new BrowserWindow({show:false,width:1060,height:720,webPreferences:{preload:path.join(root,'src/preload.cjs'),sandbox:true,contextIsolation:true}});
- ipcMain.handle('hub:action',async(_event,action)=>action==='state'?state:{ok:true});
+ ipcMain.handle('hub:action',async(_event,action,value)=>{
+  if(action==='settings-save'){Object.assign(state.settings,value.values);state.locale=require('../ui/i18n.js').resolveLocale(state.settings.language,['en-US']);}
+  return action==='state'?state:{ok:true};
+ });
  await win.loadFile(path.join(root,'ui/index.html'));const pause=()=>new Promise(r=>setTimeout(r,80)),js=s=>win.webContents.executeJavaScript(s),send=async()=>{win.webContents.send('hub:state',state);await pause();};await pause();
  assert.equal(await js('document.documentElement.lang'),'en');assert.equal(await js('document.title'),'LCSC Library Converter');
  assert.equal(await js('document.querySelector(".settings-heading h1").textContent'),'Settings');
  assert.equal(await js('document.getElementById("settings-save").textContent'),'Save this section');
  assert.equal(await js('document.getElementById("back").title'),'Back');
+ assert.equal(await js('document.getElementById("setting-language").value'),'system');
+ for(const [preference,language] of [['zh-CN','zh-CN'],['en','en'],['system','en']]){
+  await js(`(()=>{const field=document.getElementById('setting-language');field.value=${JSON.stringify(preference)};field.dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('settings-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));})()`);
+  await pause();assert.equal(state.settings.language,preference);assert.equal(await js('document.documentElement.lang'),language);
+ }
  assert.ok(await js('document.querySelector(".connection-status").getBoundingClientRect().right<=innerWidth'));
  state.page='setup';await send();assert.ok(await js('document.querySelector(".setup-heading h1").textContent.includes("first export")'));
  state.page='queue';await send();assert.equal(await js('document.querySelector(".product-description").textContent'),'贴片圆螺母');

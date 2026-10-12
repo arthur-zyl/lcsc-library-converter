@@ -3,6 +3,7 @@
   else root.i18n=factory(root.englishMessages).createI18n(root.navigator.languages?.[0]||root.navigator.language);
 })(globalThis,function(messages){
   function localeFromSystem(value){const first=Array.isArray(value)?value[0]:value;return /^zh(?:[-_]|$)/i.test(first||'')?'zh-CN':'en';}
+  function resolveLocale(preference,system){return ['zh-CN','en'].includes(preference)?preference:localeFromSystem(system);}
   const escape=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   const patterns=Object.entries(messages).filter(([key])=>/\{\d+\}/.test(key)).map(([key,en])=>{
     const indexes=[];let cursor=0,source='';
@@ -29,5 +30,5 @@
     }
     return {t,apply,get locale(){return locale;},setLocale(value,document){const next=localeFromSystem(value);if(next!==locale){locale=next;apply(document);}return locale;}};
   }
-  return {localeFromSystem,createI18n};
+  return {localeFromSystem,resolveLocale,createI18n};
 });

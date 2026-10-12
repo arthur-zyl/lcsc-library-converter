@@ -11,14 +11,16 @@ function selectSettingsGroup(group, focus=false) {
   if(focus)button.focus();
   if(state)render(state);
 }
-const settingKeys = ['retainExportPcb','kicadFootprintSource','cadenceFootprintSource','kicadFootprintDir','cadenceFootprintDir','freecadPython','kicadCli','kicadDir','kicadFootprintLibraryName','cadenceRoot','cadenceDir','cadenceLibraryName','altiumDir','altiumLibraryName','altiumFootprintSource','altiumFootprintDir'];
+const settingKeys = ['language','retainExportPcb','kicadFootprintSource','cadenceFootprintSource','kicadFootprintDir','cadenceFootprintDir','freecadPython','kicadCli','kicadDir','kicadFootprintLibraryName','cadenceRoot','cadenceDir','cadenceLibraryName','altiumDir','altiumLibraryName','altiumFootprintSource','altiumFootprintDir'];
 const $ = id => document.getElementById(id);
 let noticeTimer;
 function notice(message) { $('notice').textContent = t(message); $('notice').hidden = false; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { $('notice').hidden = true; }, 5000); }
 async function call(action, value) { try { const result = await window.hub.call(action, value); if (result?.ok === false) notice(result.message); return result; } catch (e) { notice(e.message); } }
 function text(tag, value) { const element = document.createElement(tag); element.textContent = value; return element; }
 function render(s) {
+  const languageChanged=s.locale && s.locale!==window.i18n.locale;
   if(s.locale)window.i18n.setLocale(s.locale,document);
+  if(languageChanged && setupInitialized)setupChooseTarget(setupTarget);
   const pageChanged = state?.page !== s.page;
   state = s; $('count').textContent = s.queue.length;
   const navigationPrompt=$('navigation-dialog');
@@ -81,7 +83,7 @@ function render(s) {
   $('output-folder').disabled=s.edaLocked || s.processing || s.converting;
   $('settings').hidden = s.page !== 'settings';
   renderSetup(s);
-  if (s.settings) for (const key of settingKeys) if(!dirtyGroups.has($('setting-'+key).closest('[data-settings-panel]').dataset.settingsPanel)) {const field=$('setting-'+key);if(field.type==='checkbox')field.checked=s.settings[key]===true;else field.value=s.settings[key] ?? (key.endsWith('Source')?'easyeda':'');}
+  if (s.settings) for (const key of settingKeys) if(!dirtyGroups.has($('setting-'+key).closest('[data-settings-panel]').dataset.settingsPanel)) {const field=$('setting-'+key);if(field.type==='checkbox')field.checked=s.settings[key]===true;else field.value=s.settings[key] ?? (key==='language'?'system':key.endsWith('Source')?'easyeda':'');}
   const settingsLocked = toolDetectionBusy || !!s.bridge.active || s.processing || s.converting || s.settingsBusy || settingsSaving;
   for (const element of $('settings-form').querySelectorAll('input,select,textarea,button')) element.disabled = settingsLocked;
   $('settings-save').textContent = s.settingsBusy || settingsSaving ? t("正在保存…") : t("保存当前设置");

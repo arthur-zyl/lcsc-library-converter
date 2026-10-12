@@ -1,6 +1,6 @@
 const { app, BrowserWindow, WebContentsView, ipcMain, dialog, shell, clipboard } = require('electron');
 app.setName('LCSC Library Converter');
-const {localeFromSystem,createI18n}=require('../ui/i18n.js');
+const {localeFromSystem,resolveLocale,createI18n}=require('../ui/i18n.js');
 let locale='en',messages=createI18n(locale);
 const t=(...args)=>messages.t(...args);
 const path = require('node:path'); const fs = require('node:fs/promises'); const { randomUUID } = require('node:crypto');
@@ -184,6 +184,7 @@ app.whenReady().then(async () => {
 
   if (!app.requestSingleInstanceLock()) { if (smoke) throw new Error('Smoke instance could not acquire its isolated lock'); app.quit(); return; }
   store = await new Store(smoke || app.isPackaged ? path.join(app.getPath('userData'), 'data') : path.join(ROOT, 'data')).init(); bridge = await new Bridge().start();await recover(store);
+  locale=override?localeFromSystem(override):resolveLocale(paths(store).language,app.getPreferredSystemLanguages());messages=createI18n(locale);
   if(!store.state.freecadPython)store.state.freecadPython=await detectFreeCAD();
   if((!smoke || setupSmoke) && !store.state.setupCompleted && !store.state.setupShown)current='setup';
   if(!store.state.kicadCli)store.state.kicadCli=await detectKiCad();
@@ -338,6 +339,7 @@ app.whenReady().then(async () => {
           settingsBusy=true; publish();
           try {
             await saveSettings(store,value.values || value,{group:value.group});
+            locale=override?localeFromSystem(override):resolveLocale(paths(store).language,app.getPreferredSystemLanguages());messages=createI18n(locale);
             log('设置已保存，后续导出使用新目录。');
           } finally { settingsBusy=false; publish(); }
           return {ok:true,message:'设置已保存'};

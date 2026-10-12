@@ -54,7 +54,7 @@ test('settings keep compatible defaults, persist custom paths and reject invalid
   assert.equal(paths(store).resourceDir,path.join(root,'resources')); assert.equal(paths(store).downloadDir,path.join(root,'downloads'));
   const python=path.join(root,'python.exe'); await fs.writeFile(python,'test fixture');
   const settings={freecadPython:python,resourceDir:path.join(root,'custom library'),downloadDir:path.join(root,'custom downloads')};
-  const expected={retainExportPcb:false,...settings,altiumDir:path.join(root,'altium'),altiumLibraryName:'LCSC',altiumFootprintSource:'easyeda',altiumFootprintDir:'',kicadFootprintSource:'easyeda',cadenceFootprintSource:'easyeda',kicadFootprintDir:'',cadenceFootprintDir:'',kicadCli:'',kicadDir:path.join(root,'kicad'),kicadFootprintLibraryName:'LCSC',cadenceRoot:'',cadenceDir:path.join(root,'cadence'),cadenceLibraryName:'LCSC'};
+  const expected={language:"system",retainExportPcb:false,...settings,altiumDir:path.join(root,'altium'),altiumLibraryName:'LCSC',altiumFootprintSource:'easyeda',altiumFootprintDir:'',kicadFootprintSource:'easyeda',cadenceFootprintSource:'easyeda',kicadFootprintDir:'',cadenceFootprintDir:'',kicadCli:'',kicadDir:path.join(root,'kicad'),kicadFootprintLibraryName:'LCSC',cadenceRoot:'',cadenceDir:path.join(root,'cadence'),cadenceLibraryName:'LCSC'};
   await saveSettings(store,settings);
   assert.deepEqual(paths(await new Store(root).init({freshQueue:true})),expected);
   assert.deepEqual(await fs.readdir(settings.resourceDir),[]);

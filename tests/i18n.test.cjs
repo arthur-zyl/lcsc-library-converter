@@ -1,5 +1,12 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {localeFromSystem,createI18n}=require('../ui/i18n.js'),catalog=require('../ui/locales/en.js');
+test('manual language takes precedence while system remains the default',()=>{
+ const {resolveLocale}=require('../ui/i18n.js');
+ assert.equal(resolveLocale('en',['zh-CN']),'en');
+ assert.equal(resolveLocale('zh-CN',['en-US']),'zh-CN');
+ assert.equal(resolveLocale('system',['zh-TW']),'zh-CN');
+ assert.equal(resolveLocale(undefined,['en-US']),'en');
+});
 test('system language chooses Chinese variants and English fallback',()=>{
  for(const value of ['zh-CN','zh-TW','zh_HK','zh-Hans'])assert.equal(localeFromSystem(value),'zh-CN');
  for(const value of ['en-US','en-GB','de-DE','ja-JP',undefined])assert.equal(localeFromSystem(value),'en');

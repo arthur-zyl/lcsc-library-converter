@@ -3,6 +3,18 @@ const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:
 const {detectFreeCAD,checkTools}=require('../src/setup.cjs');
 const {Store}=require('../src/store.cjs'),{saveSettings,paths}=require('../src/settings.cjs');
 const probe='HUB_TOOL={"freecad":"1.1.0","python":[3,11]}';
+test('language preference is validated, persisted and scoped to general settings',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'hub-language-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const store=await new Store(root).init(),python=path.join(root,'python.exe');await fs.writeFile(python,'');
+ assert.equal(paths(store).language,'system');
+ for(const language of ['en','zh-CN','system']){
+  await saveSettings(store,{freecadPython:python,language},{group:'general'});
+  assert.equal(paths(await new Store(root).init()).language,language);
+ }
+ await assert.rejects(saveSettings(store,{language:'invalid'},{group:'general'}),/界面语言/);
+ await saveSettings(store,{language:'en',altiumDir:path.join(root,'ad')},{group:'altium'});
+ assert.equal(paths(store).language,'system');
+});
 test('guide is shown once independently of completion, and existing configurations do not reopen it',async t=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'hub-guide-once-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const store=await new Store(root).init();assert.equal(store.state.setupShown,false);

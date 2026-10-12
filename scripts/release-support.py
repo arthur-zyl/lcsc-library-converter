@@ -49,7 +49,7 @@ def notes(repo, tag, support):
         'The application includes the EasyEDA Pro connection plugin and AD conversion dependencies. '
         'Click **Copy plugin folder** in the application, then import the extension from that folder in EasyEDA Pro. '
         'Use the setup guide to configure FreeCAD and any required EDA tools.', '',
-        'The interface automatically selects Simplified Chinese or English from the system language.'
+        'The interface follows your system language by default. Select Follow system, Simplified Chinese or English in General settings; changes apply immediately after saving.'
         if version != '0.1.0' else 'Use the setup guide to configure the application before exporting.', '',
         '## Corresponding source', '',
         'Project source is available through GitHub\'s built-in Source code downloads below. '

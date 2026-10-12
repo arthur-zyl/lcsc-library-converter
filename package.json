@@ -1,6 +1,6 @@
 {
     "name": "lcsc-component-library-helper",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "private": true,
     "description": "LCSC Library Converter — download LCSC/EasyEDA components and export KiCad, Cadence and Altium libraries",
     "main": "src/main.cjs",

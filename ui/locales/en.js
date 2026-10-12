@@ -1,4 +1,5 @@
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.englishMessages=factory();})(globalThis,()=>({
+  '界面语言':'Interface language','跟随系统':'Follow system','保存后立即切换；默认跟随系统语言。':'Changes apply immediately after saving. The default follows your system language.','界面语言无效':'Invalid interface language',
   '立创元件资源 · 多 EDA 转换':'LCSC resources · Multi-EDA conversion',
   '立创商城':'LCSC','立创 EDA':'EasyEDA Pro','立创 EDA ':'EasyEDA Pro ',
   '导出清单 ':'Export list ','导出清单':'Export list','设置':'Settings','通用':'General',

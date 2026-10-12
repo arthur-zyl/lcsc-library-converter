@@ -3,7 +3,7 @@ const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const {libraryName}=require('./kicad-names.cjs');
 function paths(store) {
-  return {retainExportPcb:store.state.retainExportPcb===true,freecadPython:store.state.freecadPython,kicadFootprintSource:store.state.kicadFootprintSource||'easyeda',cadenceFootprintSource:store.state.cadenceFootprintSource||'easyeda',kicadFootprintDir:store.state.kicadFootprintDir||'',cadenceFootprintDir:store.state.cadenceFootprintDir||'',
+  return {language:store.state.language||'system',retainExportPcb:store.state.retainExportPcb===true,freecadPython:store.state.freecadPython,kicadFootprintSource:store.state.kicadFootprintSource||'easyeda',cadenceFootprintSource:store.state.cadenceFootprintSource||'easyeda',kicadFootprintDir:store.state.kicadFootprintDir||'',cadenceFootprintDir:store.state.cadenceFootprintDir||'',
     altiumDir:store.state.altiumDir||path.join(store.root,'altium'),altiumLibraryName:store.state.altiumLibraryName||'LCSC',altiumFootprintSource:store.state.altiumFootprintSource||'easyeda',altiumFootprintDir:store.state.altiumFootprintDir||'',
     resourceDir:store.state.resourceDir || path.join(store.root,'resources'),
     downloadDir:store.state.downloadDir || path.join(store.root,'downloads'),
@@ -13,6 +13,7 @@ function paths(store) {
 async function saveSettings(store, input, {target,group}={}) {
   if(group)return saveGroup(store,input,group);
   const settings = {};
+  settings.language=languageOption(input,paths(store));
   settings.retainExportPcb=debugOption(input,paths(store));
   for(const provider of ['kicad','cadence','altium']) {
     const source=input?.[provider+'FootprintSource'] ?? paths(store)[provider+'FootprintSource'];
@@ -63,6 +64,7 @@ async function saveGroup(store,input,group){
   const settings={},current=paths(store);
   const absolute=(key,label)=>{const value=String(input?.[key]??current[key]??'').trim();if(!value || !path.isAbsolute(value))throw new Error(label+'需要完整的绝对路径。');return value;};
   if(group==='general'){
+    settings.language=languageOption(input,current);
     settings.retainExportPcb=debugOption(input,current);
     settings.freecadPython=absolute('freecadPython','FreeCAD Python');if(!(await fs.stat(settings.freecadPython).catch(()=>null))?.isFile())throw new Error('找不到 FreeCAD Python，请选择 bin/python.exe。');
   }else{
@@ -81,4 +83,5 @@ async function saveGroup(store,input,group){
   return settings;
 }
 function debugOption(input,current){const value=input?.retainExportPcb??current.retainExportPcb;if(typeof value!=='boolean')throw new Error('保留导出 PCB 开关必须是布尔值。');return value;}
+function languageOption(input,current){const value=input?.language??current.language;if(!['system','zh-CN','en'].includes(value))throw new Error('界面语言无效');return value;}
 module.exports = {paths,saveSettings,saveGroup};
