@@ -62,11 +62,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build Windows packages and verify actual EXE
         run: npm run package:win
-      - name: Archive corresponding project source
+      - name: Archive corresponding AD dependency source
         run: |
-          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          git archive --format=zip --output="release/LCSC-Library-Converter-$version-source.zip" HEAD
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/archive-ad-source.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run package:verify
@@ -77,7 +74,6 @@ jobs:
             release/LCSC-Library-Converter-*.exe
             release/LCSC-Library-Converter-*.zip
             release/SHA256SUMS.txt
-            dist/*.eext
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -104,6 +100,6 @@ jobs:
         run: |
           python3 scripts/release-support.py --repo "$GH_REPO" --tag "$RELEASE_TAG" --artifacts artifacts --notes release-notes.md
           version="${RELEASE_TAG#v}"
-          mapfile -d '' files < <(find artifacts -type f \( -name "LCSC-Library-Converter-Setup-${version}.exe" -o -name "LCSC-Library-Converter-${version}-win-x64.zip" \) -print0)
-          test "${#files[@]}" -eq 2
+          mapfile -d '' files < <(find artifacts -type f \( -name "LCSC-Library-Converter-Setup-${version}.exe" -o -name "LCSC-Library-Converter-${version}-win-x64.zip" -o -name "SHA256SUMS.txt" \) -print0)
+          test "${#files[@]}" -eq 3
           gh release create "$RELEASE_TAG" "${files[@]}" --verify-tag --title "LCSC Library Converter $RELEASE_TAG" --notes-file release-notes.md

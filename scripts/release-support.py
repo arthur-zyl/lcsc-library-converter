@@ -23,10 +23,10 @@ def api(repo, endpoint, payload=None, method='POST'):
 
 def classify(files, version):
     prefix = f'LCSC-Library-Converter-{version}'
-    user_names = {f'LCSC-Library-Converter-Setup-{version}.exe', f'{prefix}-win-x64.zip'}
-    support_names = {f'{prefix}-source.zip', f'{prefix}-ad-dependency-source.zip', 'SHA256SUMS.txt'}
+    user_names = {f'LCSC-Library-Converter-Setup-{version}.exe', f'{prefix}-win-x64.zip', 'SHA256SUMS.txt'}
+    support_names = {f'{prefix}-ad-dependency-source.zip'}
     assets = [p for p in files if p.name in user_names]
-    support = [p for p in files if p.name in support_names or p.suffix == '.eext']
+    support = [p for p in files if p.name in support_names]
     if {p.name for p in assets} != user_names or not support_names <= {p.name for p in support}:
         raise ValueError('Missing required release files')
     if len({p.name for p in support}) != len(support):
@@ -38,23 +38,22 @@ def notes(repo, tag, support):
     base = f'https://raw.githubusercontent.com/{repo}/{BRANCH}/{tag}'
     version = tag[1:]
     links = [
-        f'- [Project source for this version]({base}/LCSC-Library-Converter-{version}-source.zip)',
         f'- [AD dependency corresponding source]({base}/LCSC-Library-Converter-{version}-ad-dependency-source.zip)',
-        f'- [SHA-256 checksums]({base}/SHA256SUMS.txt)',
     ]
-    links += [f'- [EasyEDA Pro connection plugin]({base}/{p.name})' for p in support if p.suffix == '.eext']
     return '\n'.join([
         '# LCSC Library Converter', '',
         'Download components from LCSC and EasyEDA Pro and convert them to KiCad, Cadence or Altium libraries.', '',
         '## Windows downloads', '',
         '- **Setup EXE**: install the application on Windows x64.',
         '- **win-x64 ZIP**: portable application; extract the entire archive before launching.', '',
-        'The application includes the connection plugin and AD conversion dependencies. '
+        'The application includes the EasyEDA Pro connection plugin and AD conversion dependencies. '
+        'Click **Copy plugin folder** in the application, then import the extension from that folder in EasyEDA Pro. '
         'Use the setup guide to configure FreeCAD and any required EDA tools.', '',
         'The interface automatically selects Simplified Chinese or English from the system language.'
         if version != '0.1.0' else 'Use the setup guide to configure the application before exporting.', '',
-        '## Source code and developer files', '',
-        'These files are for developers and license compliance. They are not required to install or run the application.', '',
+        '## Corresponding source', '',
+        'Project source is available through GitHub\'s built-in Source code downloads below. '
+        'The following dependency source is provided for license compliance and is not required to run the application.', '',
         *links, '',
         'Project code and the AD conversion dependency are licensed under AGPL-3.0-or-later. '
         'Third-party license notices are included with the application.', '',

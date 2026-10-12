@@ -20,8 +20,9 @@ class ReleaseSupportTests(unittest.TestCase):
 
     def test_only_user_downloads_are_assets(self):
         assets, support = release.classify(self.files(), '0.2.0')
-        self.assertEqual(len(assets), 2)
-        self.assertEqual(len(support), 4)
+        self.assertEqual(len(assets), 3)
+        self.assertEqual(len(support), 1)
+        self.assertIn(Path('SHA256SUMS.txt'), assets)
         with self.assertRaises(ValueError):
             release.classify(self.files()[1:], '0.2.0')
 
@@ -30,7 +31,10 @@ class ReleaseSupportTests(unittest.TestCase):
         text = release.notes('owner/repo', 'v0.2.0', support)
         self.assertIn('release-support/v0.2.0/', text)
         self.assertIn('AD dependency corresponding source', text)
-        self.assertIn('plugin.eext', text)
+        self.assertNotIn('plugin.eext', text)
+        self.assertNotIn('Project source for this version', text)
+        self.assertNotIn('[SHA-256 checksums]', text)
+        self.assertIn('Copy plugin folder', text)
         self.assertNotIn('需要', text)
 
     def test_new_branch_uses_separate_tree(self):
