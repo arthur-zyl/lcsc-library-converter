@@ -58,6 +58,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:i18n
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:browser-language
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python tests/release-support.test.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build Windows packages and verify actual EXE

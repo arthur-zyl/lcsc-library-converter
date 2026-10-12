@@ -1,4 +1,4 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, dialog, shell, clipboard } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, dialog, shell, clipboard, session } = require('electron');
 app.setName('LCSC Library Converter');
 const {localeFromSystem,resolveLocale,createI18n}=require('../ui/i18n.js');
 let locale='en',messages=createI18n(locale);
@@ -18,6 +18,13 @@ const {itemResults,exportSelection}=require('./export-results.cjs');
 let exportJournal;
 const { parseDetails } = require('./product-details.cjs');
 const { paths, saveSettings } = require('./settings.cjs');
+const {setBrowserLanguage}=require('./browser-language.cjs');
+let browserSession;
+function syncBrowserLanguage(){
+ if(!browserSession)return;
+ setBrowserLanguage(browserSession,locale);
+ for(const view of [shop,eda])if(view && !view.webContents.isDestroyed())view.webContents.send('browser:language',locale);
+}
 const {DOWNLOADS,detectFreeCAD,checkTools}=require('./setup.cjs');
 const { detectKiCad } = require('./kicad.cjs');
 const {detectCadence}=require('./cadence.cjs');
@@ -185,6 +192,10 @@ app.whenReady().then(async () => {
   if (!app.requestSingleInstanceLock()) { if (smoke) throw new Error('Smoke instance could not acquire its isolated lock'); app.quit(); return; }
   store = await new Store(smoke || app.isPackaged ? path.join(app.getPath('userData'), 'data') : path.join(ROOT, 'data')).init(); bridge = await new Bridge().start();await recover(store);
   locale=override?localeFromSystem(override):resolveLocale(paths(store).language,app.getPreferredSystemLanguages());messages=createI18n(locale);
+  browserSession=session.fromPartition('persist:component-hub-web');
+  syncBrowserLanguage();
+  browserSession.registerPreloadScript({type:'frame',filePath:path.join(__dirname,'browser-language-preload.cjs')});
+  ipcMain.on('browser:language',event=>{event.returnValue=event.sender.session===browserSession?locale:'en';});
   if(!store.state.freecadPython)store.state.freecadPython=await detectFreeCAD();
   if((!smoke || setupSmoke) && !store.state.setupCompleted && !store.state.setupShown)current='setup';
   if(!store.state.kicadCli)store.state.kicadCli=await detectKiCad();
@@ -340,6 +351,7 @@ app.whenReady().then(async () => {
           try {
             await saveSettings(store,value.values || value,{group:value.group});
             locale=override?localeFromSystem(override):resolveLocale(paths(store).language,app.getPreferredSystemLanguages());messages=createI18n(locale);
+            syncBrowserLanguage();
             log('设置已保存，后续导出使用新目录。');
           } finally { settingsBusy=false; publish(); }
           return {ok:true,message:'设置已保存'};

@@ -6,6 +6,8 @@
 
 本地化覆盖导航、设置、首次使用引导、清单操作、常用校验提示、导出进度及结果弹窗，并包含商城注入的加入清单按钮。商城页面和原始元件名称、参数、描述以及上游诊断原文保持原样。词条位于 `ui/locales/en.js`，语言选择和模板翻译位于 `ui/i18n.js`；增加或修改界面词条时由覆盖测试检查。
 
+内嵌浏览器的 Accept-Language 和网页读取到的 navigator.language / navigator.languages 跟随软件的有效语言：中文为 zh-CN / zh，英文为 en-US / en。保存设置后同步偏好并发送 languagechange 事件，不自动刷新网页，保留当前编辑状态；只在加载时读取语言的网站可手动刷新。网站最终显示语言仍可能由其账号、Cookie 或自身支持范围决定。`npm run test:browser-language` 验证两个内嵌视图的网络请求、页面读取和运行中切换。
+
 `npm run test:i18n` 验证真实中英文界面、最小窗口布局、进度和结果弹窗；测试可通过 `--ui-language=en` / `--ui-language=zh-CN` 覆盖系统语言。
 
 [软件下载](https://github.com/arthur-zyl/lcsc-library-converter/releases/latest) · [自动构建](https://github.com/arthur-zyl/lcsc-library-converter/actions) · [问题反馈](https://github.com/arthur-zyl/lcsc-library-converter/issues)
