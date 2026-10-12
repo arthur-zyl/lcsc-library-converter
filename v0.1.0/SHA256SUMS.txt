@@ -1,0 +1,4 @@
+50fbefaa6424724518d10280063b40304a4c0587d05ce51ddff59a3542e238a9  LCSC-Library-Converter-0.1.0-ad-dependency-source.zip
+ce7c07bf82f6f75435e8f888757f9da65bd9c5553801bfad79ab04dbbf10c3f0  LCSC-Library-Converter-0.1.0-source.zip
+c0e5ff4471f3a69cbc15efbe686628a38233933a79ca8d1b355d087fbf3f580e  LCSC-Library-Converter-0.1.0-win-x64.zip
+363be4d28f82ae06df86f584711b38a3486f47d56eee3238767f0cb7ff5c4107  LCSC-Library-Converter-Setup-0.1.0.exe

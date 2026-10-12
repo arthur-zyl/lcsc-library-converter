@@ -1,8 +1,0 @@
-# Recreate tools/ad_vendor with FreeCAD's Python 3.11; do not commit installed files.
-altium-monkey==2026.6.9
-freetype-py==2.5.1
-lxml==6.0.2
-lz4==4.4.5
-Pillow==11.2.1
-uharfbuzz==0.56.3
-wn-geometer==2026.5.25
