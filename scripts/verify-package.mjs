@@ -4,6 +4,7 @@ import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
+import {userDownloadNames} from './release-files.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),release=path.join(root,'release');
 const appRoot=path.join(release,'win-unpacked/resources/app');
 const extension=JSON.parse(await fs.readFile(path.join(root,'extensions/easyeda/extension.json'),'utf8'));
@@ -20,7 +21,9 @@ await new Promise((resolve,reject)=>{
  child.on('error',e=>{clearTimeout(timer);reject(e);});child.on('close',code=>{clearTimeout(timer);code===0?resolve():reject(new Error('打包程序启动失败 '+code));});
 });
 const sums=[];
-for(const name of (await fs.readdir(release)).filter(n=>/^LCSC-Library-Converter-.*\.(zip|exe)$/.test(n))){
+const version=JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8')).version;
+for(const name of userDownloadNames(version)){
+ if(!(await fs.stat(path.join(release,name)).catch(()=>null)))continue;
  const hash=createHash('sha256');for await(const chunk of createReadStream(path.join(release,name)))hash.update(chunk);
  sums.push(hash.digest('hex')+'  '+name);
 }

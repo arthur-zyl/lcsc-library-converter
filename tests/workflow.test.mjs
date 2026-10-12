@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
 import JSZip from 'jszip';
+import {userDownloadNames} from '../scripts/release-files.mjs';
+test('release checksums select only the current installer and portable application',()=>{
+ assert.deepEqual(userDownloadNames('0.2.0'),['LCSC-Library-Converter-Setup-0.2.0.exe','LCSC-Library-Converter-0.2.0-win-x64.zip']);
+});
 const code = await fs.readFile('tests/dist/workflow.js', 'utf8');
 const extensionManifest = JSON.parse(await fs.readFile('extensions/easyeda/extension.json', 'utf8'));
 const sample = process.env.LCSC_SAMPLE_STEP ? await fs.readFile(process.env.LCSC_SAMPLE_STEP) : 'ISO-10303-21;\nEND-ISO-10303-21;';
