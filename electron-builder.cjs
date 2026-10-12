@@ -1,8 +1,11 @@
+const fs=require('node:fs');
 const path=require('node:path');
 const extension=require('./extensions/easyeda/extension.json');
+const electronDist=path.resolve(__dirname,'node_modules/electron/dist');
 module.exports={
  appId:'io.lcsc-library-converter.desktop',productName:'立创元件库转换助手',
- directories:{output:'release'},electronDist:path.resolve(__dirname,'node_modules/electron/dist'),
+ directories:{output:'release'},
+ ...(fs.existsSync(path.join(electronDist,'electron.exe'))?{electronDist}:{}),
  // FreeCAD and Tcl read these scripts directly from disk, outside Electron.
  asar:false,
  files:['package.json','LICENSE','THIRD_PARTY.md','src/**/*.cjs','ui/**/*','tools/*.py','tools/*.tcl','tools/*.txt',
